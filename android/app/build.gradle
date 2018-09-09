@@ -87,4 +87,10 @@ dependencies {
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+
+    // DevFest 2018 サービスデモ用に追加
+    implementation 'com.google.firebase:firebase-core:16.0.1'
 }
+
+// DevFest 2018 サービスデモ用に追加
+apply plugin: 'com.google.gms.google-services'
