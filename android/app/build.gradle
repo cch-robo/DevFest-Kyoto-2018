@@ -99,8 +99,12 @@ dependencies {
     // https://developer.android.com/studio/build/multidex
     implementation 'com.android.support:multidex:1.0.3'
 
+    /*
     // DevFest 2018 サービスデモ用に追加
-    implementation 'com.google.firebase:firebase-core:16.0.1'
+    implementation 'com.google.firebase:firebase-core:16.0.3'
+    implementation 'com.google.firebase:firebase-firestore:17.1.0'
+    implementation 'com.google.firebase:firebase-messaging:17.3.0'
+    */
 }
 
 // DevFest 2018 サービスデモ用に追加
