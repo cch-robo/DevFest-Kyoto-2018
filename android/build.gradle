@@ -33,7 +33,7 @@ task clean(type: Delete) {
     delete rootProject.buildDir
 }
 
-// FIXME 2018/09/10 現在の問題点の直接回避
+// FIXME 2018/09/10 現在の firebase プラグイン問題点の直接回避
 // disableVersionCheck=true で、firebase ライブラリのバージョンチェックを除外しないと、以下のようなエラーが発生します。
 // > The library com.google.firebase:firebase-iid is being requested by various other libraries at [[17.0.0,17.0.0]], but resolves to 16.0.0. Disable the plugin and check your dependencies tree using ./gradlew :app:dependencies.
 //

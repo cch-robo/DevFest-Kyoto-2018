@@ -89,7 +89,7 @@ dependencies {
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
 
-    // FIXME 2018/09/10 現在の問題点の直接回避
+    // FIXME 2018/09/10 現在の firebase プラグイン問題点の直接回避
     // ライブラリ関数 64k over 問題のため Android 5.0 以下でも multi-dex 対応化
     // (API 21 以降は標準で multi-dex 対応しているため、
     //  当該 multi-dex 指定と defaultConfig: multiDexEnabled 指定が不要になります)
