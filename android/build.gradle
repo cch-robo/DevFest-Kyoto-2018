@@ -32,3 +32,12 @@ subprojects {
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
+
+// FIXME 2018/09/10 現在の問題点の直接回避
+// disableVersionCheck=true で、firebase ライブラリのバージョンチェックを除外しないと、以下のようなエラーが発生します。
+// > The library com.google.firebase:firebase-iid is being requested by various other libraries at [[17.0.0,17.0.0]], but resolves to 16.0.0. Disable the plugin and check your dependencies tree using ./gradlew :app:dependencies.
+//
+// 【参考元】
+// problem with firebase_admob 0.5.6. #19868
+// https://github.com/flutter/flutter/issues/19868#issuecomment-408550356
+com.google.gms.googleservices.GoogleServicesPlugin.config.disableVersionCheck = true
