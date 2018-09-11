@@ -102,6 +102,8 @@ dependencies {
     /*
     // DevFest 2018 サービスデモ用に追加
     implementation 'com.google.firebase:firebase-core:16.0.3'
+    implementation 'com.google.firebase:firebase-auth:16.0.3'
+    implementation 'com.google.android.gms:play-services-auth:16.0.0'
     implementation 'com.google.firebase:firebase-firestore:17.1.0'
     implementation 'com.google.firebase:firebase-messaging:17.3.0'
     */
