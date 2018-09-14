@@ -28,6 +28,10 @@ dependencies:
 
 
 dev_dependencies:
+  # Unitテストを追加
+  test: '<3.0.0'
+
+  # Widgetテストを追加
   flutter_test:
     sdk: flutter
 
