@@ -190,19 +190,22 @@ class SignInDemoState extends State<SignInDemo> {
       print("Step.6");
       DocumentSnapshot post3 = await appData.addPostMessageDocument(event, _user, "Flutter 頑張れ。");
       print("Step.7");
+      DocumentSnapshot post4 = await appData.addPostMessageDocument(event, _user, "ちょっと休憩？");
+      await appData.deletePostMessageDocument(post4, _user);
 
-      CollectionReference postMessages = appData.getPostMessageCollection(event);
       print("Step.8");
-      List<DocumentSnapshot> postMessageList = await appData.getPostMessageDocuments(postMessages);
+      CollectionReference postMessages = appData.getPostMessageCollection(event);
       print("Step.9");
+      List<DocumentSnapshot> postMessageList = await appData.getPostMessageDocuments(postMessages);
+      print("Step.10");
       int index = 0;
       postMessageList.forEach((DocumentSnapshot docSnap) {
         Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
-        debugPrint("postMessage[${index++}]{\ｎ  user=${map["DISPLAY＿NAME"]}\n  icon=${map["PHOTO_URL"]}\n  ${map["MESSAGE"]}\n}"); // FIXME
+        debugPrint("postMessage[${index++}]{\n  user=${map["DISPLAY_NAME"]}\n  icon=${map["PHOTO_URL"]}\n  ${map["MESSAGE"]}\n  edit=${map["EDITED"]}\n  delete=${map["DELETED"]}\n}"); // FIXME
       });
-      print("Step.10");
-      await appData.updatePostMessageDocument(post3, _user, "Flutter やるじゃん。");
       print("Step.11");
+      await appData.updatePostMessageDocument(post3, _user, "Flutter やるじゃん。");
+      print("Step.12");
 
     } catch(error) {
       print('Something went wrong.');
@@ -254,7 +257,7 @@ class SignInDemoState extends State<SignInDemo> {
       index = 0;
       postDocuments.forEach((DocumentSnapshot docSnap){
         Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
-        print("PostMessage[${index++}]=${map['MESSAGE']}");
+        print("PostMessage[${index++}]=${map['MESSAGE']}, edit=${map['EDITED']}, delete=${map['DELETED']}");
       });
       print("Step.5");
       CollectionReference editMessages = appData.getEditMessageCollection(postDocuments[2]);
