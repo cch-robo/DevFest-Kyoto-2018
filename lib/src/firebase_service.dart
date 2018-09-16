@@ -11,25 +11,63 @@ import 'package:firebase_auth/firebase_auth.dart';
 /// Flutter での基本的な Firestore 機能を提供(操作手順代行)するサービスです。
 class FirestoreService {
 
+/* Firebase Authentication を使う場合には、FirebaseApp の設定は行いません。
+  /// テスト用 FirebaseApp 名
+  static final String firebaseAppName = "DevFest 2018"; // FIXME Firestoreを利用するアプリを識別するための任意名
+
   /// テスト用 FirebaseApp 生成
   ///
   /// Firebase プロジェクトを利用する Firebase アプリのインスタンスを生成します。
-  static Future<FirebaseApp> getFirebaseApp() async {
-    final FirebaseApp app = await FirebaseApp.configure(
-      name: 'test',
+  static FirebaseApp createFirebaseApp() {
+    FirebaseApp app;
+
+    // FirebaseApp 新規作成
+    app = FirebaseApp(name: firebaseAppName);
+    /*
+    app = await FirebaseApp.configure(
+      name: firebaseAppName, // FIXME Firestoreを利用するアプリを識別するための任意名
       options: const FirebaseOptions(
         // FIXME Firebaseプロジェクト設定のアプリからDevFestアプリのアプリケーションIDを直書き
         googleAppID: '1:564478734383:android:7b842dcad4186a6a',
 
         // FIXME Firebaseプロジェクト設定のウエブAPIキーを直書き
-        // apiKey: 'AIzaSyBPAu2_DdR9uzLS1c7Bwcr-kYVfvDdM7e8',
+        apiKey: 'AIzaSyBPAu2_DdR9uzLS1c7Bwcr-kYVfvDdM7e8',
 
         // FIXME Firebaseプロジェクト設定のプロジェクトIDを直書き
         projectID: 'practice-9b35a',
       ),
     );
+    */
+    print("createFirebaseApp  app create.");
     return app;
   }
+
+  /// テスト用 FirebaseApp 生成/取得
+  ///
+  /// Firebase プロジェクトを利用する Firebase アプリのインスタンスを生成/取得します。
+  static Future<FirebaseApp> getFirebaseApp() async {
+    FirebaseApp app;
+
+    // 登録済みの FirebaseApp 一覧
+    int index = 0;
+    List<FirebaseApp> apps = await FirebaseApp.allApps();
+    apps.forEach((FirebaseApp app){
+      print("getFirebaseApp  app[${index++}]=${app.name}");
+    });
+
+    // 既存 FirebaseApp 取得
+    app = await FirebaseApp.appNamed(firebaseAppName);
+    if (app != null) {
+      print("getFirebaseApp  app exist.");
+      return app;
+    }
+
+    // FirebaseApp 新規作成
+    app = createFirebaseApp();
+    print("getFirebaseApp  app create.");
+    return app;
+  }
+*/
 
   /// Firestore 生成
   ///
@@ -260,7 +298,7 @@ class AppData {
 
   /// 管理者追加
   Future<DocumentSnapshot> createAdminDocument(FirebaseUser admin, FirebaseUser member) async {
-    if (! await isAdminUser(admin)) return null;
+    if (admin.uid != member.uid && ! await isAdminUser(admin)) return null;
 
     Map<String, dynamic> map = _createAdminContent(admin, member);
     String documentName = map["NAME"];
@@ -357,8 +395,12 @@ class AppData {
     if (owner == null) throw AssertionError("owner error => null");
     if (member == null) throw AssertionError("member error => null");
 
+    /* FIXME ユーザ情報として UID のみをドキュメント名に与える
     final String namePrefix = adminDocumentPrefix;
     final String nameSuffix = "_${member.uid}";
+    */
+    final String namePrefix = "";
+    final String nameSuffix = "${member.uid}";
     final String documentName = namePrefix + nameSuffix;
 
     final Map<String, dynamic> map = {
@@ -366,7 +408,7 @@ class AppData {
       "OWNER_DISPLAY_NAME": owner.displayName,
       "MEMBER": member.uid,
       "NAME": documentName,
-      "TIMESTAMP": DateTime.now().toIso8601String(),
+      "TIMESTAMP": _getTimeStamp(DateTime.now()),
     };
     return map;
   }
@@ -409,7 +451,7 @@ class AppData {
       "DESC": desc,
       "START": startFormat,
       "END": endFormat,
-      "TIMESTAMP": DateTime.now().toIso8601String(),
+      "TIMESTAMP": _getTimeStamp(DateTime.now()),
     };
     return map;
   }
@@ -419,7 +461,7 @@ class AppData {
     if (message == null || message.isEmpty) throw AssertionError("message error => $message");
 
     final String namePrefix = postMessageDocumentPrefix;
-    final String nameSuffix = "_${DateTime.now().toIso8601String()}_${user.uid}";
+    final String nameSuffix = "_${_getTimeStamp(DateTime.now())}_${user.uid}";
     final String documentName = namePrefix + nameSuffix;
 
     final Map<String, dynamic> map = {
@@ -428,7 +470,7 @@ class AppData {
       "PHOTO_URL": user.photoUrl,
       "NAME": documentName,
       "MESSAGE": message,
-      "TIMESTAMP": DateTime.now().toIso8601String(),
+      "TIMESTAMP": _getTimeStamp(DateTime.now()),
     };
     return map;
   }
@@ -440,7 +482,7 @@ class AppData {
 
 
     final String namePrefix = editMessageDocumentPrefix;
-    final String nameSuffix = "_${DateTime.now().toIso8601String()}_${user.uid}";
+    final String nameSuffix = "_${_getTimeStamp(DateTime.now())}_${user.uid}";
     final String documentName = namePrefix + nameSuffix;
 
     final Map<String, dynamic> map = _createPostMessageContent(user, message);
@@ -454,6 +496,10 @@ class AppData {
       "SUB_COLLECTION": null,
     });
     return map;
+  }
+
+  static String _getTimeStamp(DateTime dateTime){
+    return dateTime.toIso8601String();
   }
 
   static String _zeroPadding(int value, int width) {
