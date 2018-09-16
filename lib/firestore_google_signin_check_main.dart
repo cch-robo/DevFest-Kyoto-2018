@@ -8,6 +8,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:devfest_2018/firebase_firestore_check_main.dart' as firestore_check;
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'package:devfest_2018/src/firebase_service.dart';
+
 
 // この GoogleSignIn クラスの内容は、
 // アプリにログインしているユーザのみ Firestore に書き込めることの確認実装です。
@@ -125,8 +127,16 @@ class SignInDemoState extends State<SignInDemo> {
             child: const Text('Firestore'),
             onPressed: () async {
               final FirebaseApp app = FirebaseApp.instance; // auth認証結果を引き継げるよう、生成済みのインスタンスを利用する
-              final Firestore firestore = new Firestore(app: app);
+              final Firestore firestore = FirestoreService.createFirestore(initApp: app);
 
+/*
+              // FIXME イベントデータの仮追加
+              createData(firestore);
+*/
+///*
+              // FIXME イベントデータの確認
+              readData(firestore);
+//*/
               Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => firestore_check.MyHomePage( firestore: firestore ) ) );
@@ -159,4 +169,116 @@ class SignInDemoState extends State<SignInDemo> {
           child: _buildBody(),
         ));
   }
+
+  Future<void> createData(Firestore firestore) async {
+    try {
+      print("Step.0");
+      AppData appData = AppData(firestore: firestore);
+      print("Step.1");
+      await appData.createAdminDocument(_user, _user);
+      print("Step.2");
+      DocumentSnapshot event = await appData.addEventDocument(
+          2018, 9, 24, 13, 30, 16, 30, "kyoto", _user, "DevFest Kyoto 2018", "GDG Kyoto's DevFest", "Kyoto");
+      print("Step.3");
+
+      List<DocumentSnapshot> events = await appData.getEventDocuments();
+      print("getEventDocuments  events=${events.length}");
+      print("Step.4");
+      DocumentSnapshot post1 = await appData.addPostMessageDocument(event, _user, "DevFest Kyoto 2018 始まった");
+      print("Step.5");
+      DocumentSnapshot post2 = await appData.addPostMessageDocument(event, _user, "Kotlin イケイケですね~。");
+      print("Step.6");
+      DocumentSnapshot post3 = await appData.addPostMessageDocument(event, _user, "Flutter 頑張れ。");
+      print("Step.7");
+
+      CollectionReference postMessages = appData.getPostMessageCollection(event);
+      print("Step.8");
+      List<DocumentSnapshot> postMessageList = await appData.getPostMessageDocuments(postMessages);
+      print("Step.9");
+      int index = 0;
+      postMessageList.forEach((DocumentSnapshot docSnap) {
+        Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
+        debugPrint("postMessage[${index++}]{\ｎ  user=${map["DISPLAY＿NAME"]}\n  icon=${map["PHOTO_URL"]}\n  ${map["MESSAGE"]}\n}"); // FIXME
+      });
+      print("Step.10");
+      await appData.updatePostMessageDocument(post3, _user, "Flutter やるじゃん。");
+      print("Step.11");
+
+    } catch(error) {
+      print('Something went wrong.');
+      print("  type ⇒ ${error?.runtimeType??''}");
+      print("  error ⇒ {\n${error?.toString()??''}\n}");
+      if (error is Error) {
+        print("  stacktrace ⇒ {\n${error?.stackTrace??''}\n}");
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> readData(Firestore firestore) async {
+    try {
+      print("Step.0");
+      AppData appData = AppData(firestore: firestore);
+      print("firestore.app.name=${firestore.app.name}");
+      print("Step.1");
+      DocumentSnapshot admin = await appData.getAdminDocument(_user.uid, _user);
+      if (admin != null) {
+        Map<String, dynamic> map = FirestoreService.getProperties(admin);
+        print("Admin=${map['OWNER_DISPLAY_NAME']}");
+      } else{
+        print("Admin is null");
+      }
+      print("Step.2");
+      int index;
+      List<DocumentSnapshot> admins = await appData.getAdminDocuments(_user);
+      if (admins != null) {
+        index = 0;
+        admins.forEach((DocumentSnapshot docSnap){
+          Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
+          print("Admin[${index++}]=${map['OWNER_DISPLAY_NAME']}");
+        });
+      } else {
+        print("Admins is null");
+      }
+      print("Step.3");
+      List<DocumentSnapshot> events = await appData.getEventDocuments();
+      index = 0;
+      events.forEach((DocumentSnapshot docSnap){
+        Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
+        print("Event[${index++}]=${map['TITLE']}");
+      });
+      print("Step.4");
+      DocumentSnapshot eventSnap = events[0];
+      CollectionReference postMessages = appData.getPostMessageCollection(eventSnap);
+      List<DocumentSnapshot> postDocuments = await appData.getPostMessageDocuments(postMessages);
+      index = 0;
+      postDocuments.forEach((DocumentSnapshot docSnap){
+        Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
+        print("PostMessage[${index++}]=${map['MESSAGE']}");
+      });
+      print("Step.5");
+      CollectionReference editMessages = appData.getEditMessageCollection(postDocuments[2]);
+      List<DocumentSnapshot> editDocuments = await appData.getEditMessageDocuments(editMessages, _user);
+      if (editDocuments != null) {
+        index = 0;
+        editDocuments.forEach((DocumentSnapshot docSnap){
+          Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
+          print("editMessage[${index++}]=${map['MESSAGE']}, ${map["BEFORE_MESSAGE"]}");
+        });
+      } else {
+        print("editMessage is null");
+      }
+      print("Step.6");
+
+    } catch(error) {
+      print('Something went wrong.');
+      print("  type ⇒ ${error?.runtimeType??''}");
+      print("  error ⇒ {\n${error?.toString()??''}\n}");
+      if (error is Error) {
+        print("  stacktrace ⇒ {\n${error?.stackTrace??''}\n}");
+      }
+      rethrow;
+    }
+  }
+
 }
