@@ -361,7 +361,7 @@ class AppData {
     String documentName = editMap["NAME"];
 
     Map<String, dynamic> postMap = FirestoreService.getProperties(postMessage);
-    postMap.addAll({"OWNER": user.uid, "MESSAGE": message});
+    postMap.addAll({"OWNER": user.uid, "MESSAGE": message, "EDITED": true});
 
     // 投稿を更新
     await FirestoreService.update(postMessage.reference, postMap);
@@ -470,6 +470,7 @@ class AppData {
       "PHOTO_URL": user.photoUrl,
       "NAME": documentName,
       "MESSAGE": message,
+      "EDITED": false,
       "TIMESTAMP": _getTimeStamp(DateTime.now()),
     };
     return map;
@@ -495,6 +496,7 @@ class AppData {
       "PARENT_COLLECTION": parentCollectionName,
       "SUB_COLLECTION": null,
     });
+    map.remove("EDITED");
     return map;
   }
 
