@@ -90,7 +90,7 @@ class FirestoreService {
     return querySnapshot.documents;
   }
 
-  /// 現時点のドキュメントから、参照(実態確定)を取得
+  /// 現時点のドキュメントから、参照(実態未確定)を取得
   static DocumentReference convertDocumentReference(DocumentSnapshot docSnap) {
     return docSnap.reference;
   }
@@ -371,7 +371,7 @@ class AppData {
     String documentName = editMap["NAME"];
 
     Map<String, dynamic> postMap = FirestoreService.getProperties(postMessage);
-    postMap.addAll({"OWNER": user.uid, "MESSAGE": message, "EDITED": true});
+    postMap.addAll({"OWNER": user.uid, "MESSAGE": message, "EDITED": true, "DELETED": false});
 
     // 投稿を更新
     await FirestoreService.update(postMessage.reference, postMap);
@@ -384,6 +384,43 @@ class AppData {
 
     // 更新された投稿を返す
     return postMessage;
+  }
+
+  /// 管理者を削除
+  Future<bool> deleteAdminDocument(FirebaseUser admin, FirebaseUser member) async {
+    if (admin.uid != member.uid && ! await isAdminUser(admin)) return false;
+
+    Map<String, dynamic> map = _createAdminContent(admin, member);
+    String documentName = map["NAME"];
+
+    DocumentSnapshot document = await FirestoreService.getDocument(_admins, documentName);
+    if (document != null) {
+      await FirestoreService.delete(document.reference);
+    }
+    return true;
+  }
+
+  /// メッセージ投稿削除 (論理削除)
+  Future<bool> deletePostMessageDocument(DocumentSnapshot postMessage, FirebaseUser user) async {
+    if (! await isDocumentOwnerUser(postMessage, user)) return false;
+
+    final String message = "** DELETED **";
+    Map<String, dynamic> editMap = _createEditMessageContent(postMessage, user, message);
+    String documentName = editMap["NAME"];
+
+    Map<String, dynamic> postMap = FirestoreService.getProperties(postMessage);
+    postMap.addAll({"OWNER": user.uid, "MESSAGE": message, "EDITED": false, "DELETED": true});
+
+    // 投稿を更新
+    await FirestoreService.update(postMessage.reference, postMap);
+    _debugProperties("postMessage", postMap);
+
+    // 編集を追加
+    CollectionReference editMessages = getEditMessageCollection(postMessage);
+    await FirestoreService.createDocument(editMessages, documentName, initProperties: editMap);
+    _debugProperties("editMessage", editMap);
+
+    return true;
   }
 
   /// FIXME (暫定)ユーザの管理者権限を確認
@@ -481,6 +518,7 @@ class AppData {
       "NAME": documentName,
       "MESSAGE": message,
       "EDITED": false,
+      "DELETED": false,
       "TIMESTAMP": _getTimeStamp(DateTime.now()),
     };
     return map;
@@ -507,6 +545,7 @@ class AppData {
       "SUB_COLLECTION": null,
     });
     map.remove("EDITED");
+    map.remove("DELETED");
     return map;
   }
 
