@@ -208,7 +208,8 @@ class AppData {
   }
 
   /// 管理者一覧を取得
-  Future<List<DocumentSnapshot>> getAdminDocuments() async {
+  Future<List<DocumentSnapshot>> getAdminDocuments(FirebaseUser user) async {
+    if (! await isAdminUser(user)) return null;
     return await FirestoreService.getDocuments(_admins);
   }
 
@@ -223,14 +224,45 @@ class AppData {
   }
 
   /// 編集メッセージ一覧を取得
-  Future<List<DocumentSnapshot>> getEditMessageDocuments(CollectionReference editMessages) async {
+  Future<List<DocumentSnapshot>> getEditMessageDocuments(CollectionReference editMessages, FirebaseUser user) async {
+    /*
     return await FirestoreService.getDocuments(editMessages);
+    */
+    List<DocumentSnapshot> editMessageList = await FirestoreService.getDocuments(editMessages);
+    return (editMessageList != null && editMessageList.isNotEmpty)
+        ? (await isDocumentOwnerUser(editMessageList[0], user) ? editMessageList : null)
+        : editMessageList;
+  }
+
+  /// 管理者を取得
+  Future<DocumentSnapshot> getAdminDocument(String documentName, FirebaseUser user) async {
+    if (! await isAdminUser(user)) return null;
+    return await FirestoreService.getDocument(_admins, documentName);
+  }
+
+  /// イベントを取得
+  Future<DocumentSnapshot> getEventDocument(String documentName) async {
+    return await FirestoreService.getDocument(_events, documentName);
+  }
+
+  /// 投稿メッセージを取得
+  Future<DocumentSnapshot> getPostMessageDocument(DocumentSnapshot event, String documentName) async {
+    CollectionReference postMessages = getPostMessageCollection(event);
+    return await FirestoreService.getDocument(postMessages, documentName);
+  }
+
+  /// 編集メッセージを取得
+  Future<DocumentSnapshot> getEditMessageDocument(DocumentSnapshot postMessage, String documentName, FirebaseUser user) async {
+    if (! await isDocumentOwnerUser(postMessage, user)) return null;
+    CollectionReference editMessages = getEditMessageCollection(postMessage);
+    return await FirestoreService.getDocument(editMessages, documentName);
   }
 
   /// 管理者追加
-  Future<DocumentSnapshot> createAdminDocument(FirebaseUser owner, FirebaseUser member) async {
+  Future<DocumentSnapshot> createAdminDocument(FirebaseUser admin, FirebaseUser member) async {
+    if (! await isAdminUser(admin)) return null;
 
-    Map<String, dynamic> map = _createAdminContent(owner, member);
+    Map<String, dynamic> map = _createAdminContent(admin, member);
     String documentName = map["NAME"];
 
     DocumentSnapshot document = await FirestoreService.getDocument(_admins, documentName);
@@ -285,6 +317,7 @@ class AppData {
 
   /// メッセージ投稿更新
   Future<DocumentSnapshot> updatePostMessageDocument(DocumentSnapshot postMessage, FirebaseUser user, String message) async {
+    if (! await isDocumentOwnerUser(postMessage, user)) return null;
 
     Map<String, dynamic> editMap = _createEditMessageContent(postMessage, user, message);
     String documentName = editMap["NAME"];
@@ -303,6 +336,21 @@ class AppData {
 
     // 更新された投稿を返す
     return postMessage;
+  }
+
+  /// FIXME (暫定)ユーザの管理者権限を確認
+  ///
+  /// Firestore Security Rules で、アクセス者のUIDがチェックできないため暫定追加
+  Future<bool> isAdminUser(FirebaseUser user) async {
+    return await FirestoreService.getDocument(_admins, user.uid) != null;
+  }
+
+  /// FIXME (暫定)ユーザのドキュメント・オーナ権限を確認
+  ///
+  /// Firestore Security Rules で、アクセス者のUIDがチェックできないため暫定追加
+  Future<bool> isDocumentOwnerUser(DocumentSnapshot docSnap, FirebaseUser user) async {
+    Map<String,dynamic> map = FirestoreService.getProperties(docSnap);
+    return map != null ? map["OWNER"] == user.uid : false;
   }
 
   Map<String, dynamic> _createAdminContent(FirebaseUser owner, FirebaseUser member) {
