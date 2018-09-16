@@ -236,13 +236,23 @@ class AppData {
   /// 投稿メッセージコレクションを取得
   CollectionReference getPostMessageCollection(DocumentSnapshot eventSnap) {
     Map<String, dynamic> map = FirestoreService.getProperties(eventSnap);
+    /*
+    // 投稿メッセージのコレクションを作成する。
     return FirestoreService.getCollection(_firestore, map["SUB_COLLECTION"]);
+    */
+    // 投稿メッセージをイベント・ドキュメントのサブコレクションにする。
+    return eventSnap.reference.collection(map["SUB_COLLECTION"]);
   }
 
   /// 編集メッセージコレクションを取得
   CollectionReference getEditMessageCollection(DocumentSnapshot postMessageSnap) {
     Map<String, dynamic> map = FirestoreService.getProperties(postMessageSnap);
+    /*
+    // 編集メッセージのコレクションを作成する。
     return FirestoreService.getCollection(_firestore, map["SUB_COLLECTION"]);
+    */
+    // 編集メッセージを投稿メッセージ・ドキュメントのサブコレクションにする。
+    return postMessageSnap.reference.collection(map["SUB_COLLECTION"]);
   }
 
   /// 管理者一覧を取得
