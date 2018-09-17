@@ -74,7 +74,7 @@ class SignInPageState extends State<SignInPage> {
           new RaisedButton(
             color: Colors.white,
             textColor: Colors.black,
-            child: const Text('DevFest 2018'),
+            child: const Text('DevFest Chat'),
             onPressed: () async {
               Navigator.push(
                   context,

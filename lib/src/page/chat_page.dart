@@ -14,19 +14,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/animation.dart';
-/*
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_database/ui/firebase_animated_list.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-*/
+
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-
 
 import 'package:devfest_2018/src/state/state_provider.dart';
 import 'package:devfest_2018/src/state/sign_in_state.dart';
@@ -44,49 +35,6 @@ final ThemeData kDefaultTheme = new ThemeData(
   accentColor: Colors.orangeAccent[400],
 );
 
-//final googleSignIn = new GoogleSignIn();
-//final auth = FirebaseAuth.instance;
-//final reference = FirebaseDatabase.instance.reference().child('messages');
-
-//const String _name = "Your Name";
-
-/*
-void main() {
-  runApp(new FriendlychatApp());
-}
-*/
-
-/*
-Future<Null> _ensureLoggedIn() async {
-  GoogleSignInAccount user = googleSignIn.currentUser;
-  if (user == null)
-    user = await googleSignIn.signInSilently();
-  if (user == null) {
-    user = await googleSignIn.signIn();
-  }
-  if (await auth.currentUser() == null) {
-    GoogleSignInAuthentication credentials =
-    await googleSignIn.currentUser.authentication;
-    await auth.signInWithGoogle(
-      idToken: credentials.idToken,
-      accessToken: credentials.accessToken,
-    );
-  }
-}
-
-class FriendlychatApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return new MaterialApp(
-      title: "Friendlychat",
-      theme: defaultTargetPlatform == TargetPlatform.iOS
-          ? kIOSTheme
-          : kDefaultTheme,
-      home: new ChatScreen(),
-    );
-  }
-}
-*/
 
 @override
 class ChatMessage extends StatelessWidget {
@@ -183,23 +131,6 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
           elevation: Theme.of(context).platform == TargetPlatform.iOS ? 0.0 : 4.0,
         ),
         body: new Column(children: <Widget>[
-          /*
-          new Flexible(
-            child: new FirebaseAnimatedList(
-              query: reference,
-              sort: (a, b) => b.key.compareTo(a.key),
-              padding: new EdgeInsets.all(8.0),
-              reverse: true,
-              itemBuilder: (_, DataSnapshot snapshot, Animation<double> animation) {
-                return new ChatMessage(
-                    snapshot: snapshot,
-                    animation: animation
-                );
-              },
-            ),
-          ),
-          */
-          // FIXME 仕様が判明するまで仮実装
           new Flexible(
             child: new ListView(
               children: _latestPostMessages,
@@ -225,16 +156,6 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
               child: new IconButton(
                   icon: new Icon(Icons.photo_camera),
                   onPressed: () async {
-                    /*
-                    await _ensureLoggedIn();
-                    File imageFile = await ImagePicker.pickImage();
-                    int random = new Random().nextInt(100000);
-                    StorageReference ref =
-                    FirebaseStorage.instance.ref().child("image_$random.jpg");
-                    StorageUploadTask uploadTask = ref.put(imageFile);
-                    Uri downloadUrl = (await uploadTask.future).downloadUrl;
-                    _sendMessage(imageUrl: downloadUrl.toString());
-                    */
                     /// イメージピッカーで選択したギャラリー画像を、Firebase Storage にアップロードする。
                     /// (カメラ画像にする場合は、picImage の source: に ImageSource.camera を指定してください)
                     ///
@@ -293,9 +214,6 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
     setState(() {
       _isComposing = false;
     });
-    /*
-    await _ensureLoggedIn();
-    */
     _sendMessage(text: text);
   }
 
