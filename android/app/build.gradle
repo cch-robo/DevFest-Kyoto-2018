@@ -99,6 +99,13 @@ dependencies {
     // https://developer.android.com/studio/build/multidex
     //implementation 'com.android.support:multidex:1.0.3'
 
+    // FIXME 2018/09/10 image_picker ライブラリ依存の直接回避
+    // DevFest 2018 サービスで利用している image_picker ライブラリが
+    // android/build.gradle で support ライブラリのバージョンを指定(*1)しているため、
+    // サポートライブラリの依存バージョンを指定して導入する。
+    // (*1)dependencies { api 'com.android.support:support-v4:27.1.1' }
+    implementation 'com.android.support:support-v4:27.1.1'
+
     /*
     // DevFest 2018 サービスデモ用に追加
     implementation 'com.google.firebase:firebase-core:16.0.3'
@@ -106,6 +113,7 @@ dependencies {
     implementation 'com.google.android.gms:play-services-auth:16.0.0'
     implementation 'com.google.firebase:firebase-firestore:17.1.0'
     implementation 'com.google.firebase:firebase-messaging:17.3.0'
+    implementation 'com.google.firebase:firebase-storage:16.0.1'
     */
 }
 
