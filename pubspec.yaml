@@ -35,6 +35,14 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
+  # iOS/Android アイコン生成ツール
+  flutter_launcher_icons: "^0.6.1"
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/devfest-kyoto-2018.png"
+
 
 # For information on the generic Dart part of this file, see the
 # following page: https://www.dartlang.org/tools/pub/pubspec
