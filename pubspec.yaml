@@ -38,6 +38,7 @@ dev_dependencies:
   # iOS/Android アイコン生成ツール
   flutter_launcher_icons: "^0.6.1"
 
+# iOS/Android アイコン生成ツール設定
 flutter_icons:
   android: true
   ios: true
@@ -85,3 +86,9 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.io/custom-fonts/#from-packages
+
+  assets:
+    # Sign-In Branding Guidelines のリソースより
+    # https://developers.google.com/identity/branding-guidelines
+    - assets/images/btn_google_signin_dark_normal_web_2x.png
+
