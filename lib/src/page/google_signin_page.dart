@@ -81,6 +81,7 @@ class SignInPageState extends State<SignInPage> {
                   MaterialPageRoute(builder: (context) => ChatScreen()) );
             },
           ),
+          /// SIGN OUT ボタン
           new RaisedButton(
             color: Colors.white,
             textColor: Colors.black,
@@ -96,6 +97,7 @@ class SignInPageState extends State<SignInPage> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: <Widget>[
           const Text("You are not currently signed in."),
+          /// SIGN IN ボタン
           new RaisedButton(
               padding: EdgeInsets.all(0.0),
               color: Colors.white,
