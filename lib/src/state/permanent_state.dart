@@ -16,6 +16,9 @@ class AppDataState {
   CollectionReference _admins;
   CollectionReference _events;
 
+  DocumentSnapshot _postMessagesSelectorEvent;
+  DocumentSnapshot _editMessagesSelectorPostMessage;
+
   final String adminCollectionName = "evtn_admins";
   final String adminDocumentPrefix = "evtn_admin";
   final String eventCollectionName = "evtn_events";
@@ -32,8 +35,15 @@ class AppDataState {
   }
 
   // 状態アクセッサ
+
+  /// firestore
   Firestore get firestore => _firestore;
 
+  /// 投稿メッセージ選択中のイベント
+  DocumentSnapshot get postMessagesSelectorEvent => _postMessagesSelectorEvent;
+
+  /// 編集メッセージ選択中の投稿メッセージ
+  DocumentSnapshot get editMessagesSelectorPostMessage => _editMessagesSelectorPostMessage;
 
   /// 管理者コレクションを取得
   CollectionReference getAdminCollection() {
@@ -47,6 +57,7 @@ class AppDataState {
 
   /// 投稿メッセージコレクションを取得
   CollectionReference getPostMessageCollection(DocumentSnapshot eventSnap) {
+    _postMessagesSelectorEvent = eventSnap;
     Map<String, dynamic> map = FirestoreService.getProperties(eventSnap);
     /*
     // 投稿メッセージのコレクションを作成する。
@@ -58,6 +69,7 @@ class AppDataState {
 
   /// 編集メッセージコレクションを取得
   CollectionReference getEditMessageCollection(DocumentSnapshot postMessageSnap) {
+    _editMessagesSelectorPostMessage = postMessageSnap;
     Map<String, dynamic> map = FirestoreService.getProperties(postMessageSnap);
     /*
     // 編集メッセージのコレクションを作成する。
@@ -107,6 +119,7 @@ class AppDataState {
 
   /// 投稿メッセージを取得
   Future<DocumentSnapshot> getPostMessageDocument(DocumentSnapshot event, String documentName) async {
+    _postMessagesSelectorEvent = event;
     CollectionReference postMessages = getPostMessageCollection(event);
     return await FirestoreService.getDocument(postMessages, documentName);
   }
@@ -114,6 +127,8 @@ class AppDataState {
   /// 編集メッセージを取得
   Future<DocumentSnapshot> getEditMessageDocument(DocumentSnapshot postMessage, String documentName, FirebaseUser user) async {
     if (! await isDocumentOwnerUser(postMessage, user)) return null;
+    _editMessagesSelectorPostMessage = postMessage;
+
     CollectionReference editMessages = getEditMessageCollection(postMessage);
     return await FirestoreService.getDocument(editMessages, documentName);
   }
@@ -159,16 +174,13 @@ class AppDataState {
   }
 
   /// メッセージ投稿
-  Future<DocumentSnapshot> addPostMessageDocument(DocumentSnapshot event, FirebaseUser user, String message) async {
-
-    Map<String, dynamic> map = _createPostMessageContent(user, message);
-    String documentName = map["NAME"];
+  Future<DocumentSnapshot> addPostMessageDocument(DocumentSnapshot event, FirebaseUser user, String message, String imageUrl) async {
+    _postMessagesSelectorEvent = event;
 
     CollectionReference postMessages = getPostMessageCollection(event);
-    map.addAll({
-      "PARENT_COLLECTION": postMessages.id,
-      "SUB_COLLECTION": editMessageCollectionPrefix + postMessages.id.replaceFirst(postMessageCollectionPrefix, "")
-    });
+    String subCollectionId = editMessageCollectionPrefix + postMessages.id.replaceFirst(postMessageCollectionPrefix, "");
+    Map<String, dynamic> map = _createPostMessageContent(user, message, imageUrl, postMessages.id, subCollectionId);
+    String documentName = map["NAME"];
 
     DocumentSnapshot document = await FirestoreService.createDocument(postMessages, documentName, initProperties: map);
     _debugProperties("postMessage", map);
@@ -176,14 +188,15 @@ class AppDataState {
   }
 
   /// メッセージ投稿更新
-  Future<DocumentSnapshot> updatePostMessageDocument(DocumentSnapshot postMessage, FirebaseUser user, String message) async {
+  Future<DocumentSnapshot> updatePostMessageDocument(DocumentSnapshot postMessage, FirebaseUser user, String message, String imageUrl) async {
     if (! await isDocumentOwnerUser(postMessage, user)) return null;
+    _editMessagesSelectorPostMessage = postMessage;
 
-    Map<String, dynamic> editMap = _createEditMessageContent(postMessage, user, message);
+    Map<String, dynamic> editMap = _createEditMessageContent(postMessage, user, message, imageUrl);
     String documentName = editMap["NAME"];
 
     Map<String, dynamic> postMap = FirestoreService.getProperties(postMessage);
-    postMap.addAll({"OWNER": user.uid, "MESSAGE": message, "EDITED": true, "DELETED": false});
+    postMap.addAll({"OWNER": user.uid, "MESSAGE": message, "IMAGE_URL": imageUrl, "EDITED": true, "DELETED": false});
 
     // 投稿を更新
     await FirestoreService.update(postMessage.reference, postMap);
@@ -215,13 +228,15 @@ class AppDataState {
   /// メッセージ投稿削除 (論理削除)
   Future<bool> deletePostMessageDocument(DocumentSnapshot postMessage, FirebaseUser user) async {
     if (! await isDocumentOwnerUser(postMessage, user)) return false;
+    _editMessagesSelectorPostMessage = postMessage;
 
     final String message = "** DELETED **";
-    Map<String, dynamic> editMap = _createEditMessageContent(postMessage, user, message);
+    final String imageUrl = null;
+    Map<String, dynamic> editMap = _createEditMessageContent(postMessage, user, message, imageUrl);
     String documentName = editMap["NAME"];
 
     Map<String, dynamic> postMap = FirestoreService.getProperties(postMessage);
-    postMap.addAll({"OWNER": user.uid, "MESSAGE": message, "EDITED": false, "DELETED": true});
+    postMap.addAll({"OWNER": user.uid, "MESSAGE": message, "IMAGE_URL": imageUrl, "EDITED": false, "DELETED": true});
 
     // 投稿を更新
     await FirestoreService.update(postMessage.reference, postMap);
@@ -263,11 +278,11 @@ class AppDataState {
     final String documentName = namePrefix + nameSuffix;
 
     final Map<String, dynamic> map = {
-      "OWNER": owner.uid,
-      "OWNER_DISPLAY_NAME": owner.displayName,
-      "MEMBER": member.uid,
-      "NAME": documentName,
-      "TIMESTAMP": _getTimeStamp(DateTime.now()),
+      "MEMBER":              member.uid,         // 管理者メンバのUID
+      "MEMBER_DISPLAY_NAME": member.displayName, // 管理者メンバ名
+      "OWNER":               owner.uid,          // 作成者のUID
+      "NAME":                documentName,       // ドキュメントID名
+      "TIMESTAMP": _getTimeStamp(DateTime.now()) // 記録時タイムスタンプ
     };
     return map;
   }
@@ -301,63 +316,79 @@ class AppDataState {
     final String subCollectionName = subCollectionPrefix + nameSuffix;
 
     final Map<String, dynamic> map = {
-      "OWNER": user.uid,
-      "NAME": documentName,
-      "PARENT_COLLECTION": _events.id,
-      "SUB_COLLECTION": subCollectionName,
-      "TITLE": title,
-      "PLACE": place,
-      "DESC": desc,
-      "START": startFormat,
-      "END": endFormat,
-      "TIMESTAMP": _getTimeStamp(DateTime.now()),
+      "TITLE":             title,                // イベントタイトル
+      "PLACE":             place,                // イベント開催場所
+      "DESC":              desc,                 // イベント内容の概要説明
+      "START":             startFormat,          // イベント開始日時
+      "END":               endFormat,            // イベント終了日時
+      "OWNER":             user.uid,             // 作成者のUID
+      "NAME":              documentName,         // ドキュメントID名
+      "PARENT_COLLECTION": _events.id,           // 親コレクションID名
+      "SUB_COLLECTION":    subCollectionName,    // サブコレクションID名
+      "TIMESTAMP": _getTimeStamp(DateTime.now()) // 記録時タイムスタンプ
     };
     return map;
   }
 
-  Map<String, dynamic> _createPostMessageContent(FirebaseUser user, String message) {
+  Map<String, dynamic> _createPostMessageContent(FirebaseUser user, String message, String imageUrl, String parentId, String subId) {
     if (user == null) throw AssertionError("user error => null");
-    if (message == null || message.isEmpty) throw AssertionError("message error => $message");
+    if (message == null && imageUrl == null) throw AssertionError("message and imageUrl must not null");
+    if (message != null && message.isEmpty) throw AssertionError("message error => $message");
+    if (imageUrl != null && imageUrl.isEmpty) throw AssertionError("imageUrl error => $imageUrl");
+    if (message != null && imageUrl != null) throw AssertionError("both message and image URL must not be specified");
+    /// message と imageUrl は、どちらか一方しか指定できません。
 
     final String namePrefix = postMessageDocumentPrefix;
     final String nameSuffix = "_${_getTimeStamp(DateTime.now())}_${user.uid}";
     final String documentName = namePrefix + nameSuffix;
 
     final Map<String, dynamic> map = {
-      "OWNER": user.uid,
-      "DISPLAY_NAME": user.displayName,
-      "PHOTO_URL": user.photoUrl,
-      "NAME": documentName,
-      "MESSAGE": message,
-      "EDITED": false,
-      "DELETED": false,
-      "TIMESTAMP": _getTimeStamp(DateTime.now()),
+      "DISPLAY_NAME":      user.displayName,  // 投稿者の名前
+      "ICON_URL":          user.photoUrl,     // 投稿者のアイコンURL
+      "MESSAGE":           message,           // 投稿メッセージ
+      "IMAGE_URL":         imageUrl,          // 投稿画像URL
+      "EDITED":            false,             // 投稿編集済フラグ
+      "DELETED":           false,             // 投稿削除フラグ
+      "OWNER":             user.uid,          // 投稿者のUID
+      "NAME":              documentName,      // ドキュメントID名
+      "PARENT_COLLECTION": parentId != null ? parentId : null, // 親コレクションID名
+      "SUB_COLLECTION":    subId != null ? subId : null,       // サブコレクションID名
+      "TIMESTAMP": _getTimeStamp(DateTime.now()), // 記録時タイムスタンプ
     };
     return map;
   }
 
-  Map<String, dynamic> _createEditMessageContent(DocumentSnapshot postMessage, FirebaseUser user, String message) {
+  Map<String, dynamic> _createEditMessageContent(DocumentSnapshot postMessage, FirebaseUser user, String message, String imageUrl) {
     if (postMessage == null) throw AssertionError("postMessage error => null");
     if (user == null) throw AssertionError("user error => null");
-    if (message == null || message.isEmpty) throw AssertionError("message error => $message");
+    if (message == null && imageUrl == null) throw AssertionError("message and imageUrl must not null");
+    if (message != null && message.isEmpty) throw AssertionError("message error => $message");
+    if (imageUrl != null && imageUrl.isEmpty) throw AssertionError("imageUrl error => $imageUrl");
+    if (message != null && imageUrl != null) throw AssertionError("both message and image URL must not be specified");
+    /// message と imageUrl は、どちらか一方しか指定できません。
 
 
     final String namePrefix = editMessageDocumentPrefix;
     final String nameSuffix = "_${_getTimeStamp(DateTime.now())}_${user.uid}";
     final String documentName = namePrefix + nameSuffix;
 
-    final Map<String, dynamic> map = _createPostMessageContent(user, message);
     final Map<String, dynamic> postMap = FirestoreService.getProperties(postMessage);
     final String beforeMessage = postMap["MESSAGE"];
+    final String beforeImageUrl = postMap["IMAGE_URL"];
     final String parentCollectionName = postMap["SUB_COLLECTION"];
-    map.addAll({
-      "BEFORE_MESSAGE": beforeMessage,
-      "NAME": documentName,
-      "PARENT_COLLECTION": parentCollectionName,
-      "SUB_COLLECTION": null,
-    });
-    map.remove("EDITED");
-    map.remove("DELETED");
+    final Map<String, dynamic> map = {
+      "DISPLAY_NAME":      user.displayName,     // 投稿者の名前
+      "ICON_URL":          user.photoUrl,        // 投稿者のアイコンURL
+      "BEFORE_MESSAGE":    beforeMessage,        // 編集前の投稿メッセージ
+      "MESSAGE":           message,              // 編集後の投稿メッセージ
+      "BEFORE_IMAGE_URL":  beforeImageUrl,       // 編集前の投稿画像URL
+      "IMAGE_URL":         imageUrl,             // 編集後の投稿画像URL
+      "OWNER":             user.uid,             // 投稿者のUID
+      "NAME":              documentName,         // ドキュメントID名
+      "PARENT_COLLECTION": parentCollectionName, // 親コレクションID名
+      "SUB_COLLECTION":    null,                 // サブコレクションID名
+      "TIMESTAMP": _getTimeStamp(DateTime.now()) // 記録時タイムスタンプ
+    };
     return map;
   }
 
@@ -404,13 +435,13 @@ class AppDataExample {
       List<DocumentSnapshot> events = await appData.getEventDocuments();
       print("getEventDocuments  events=${events.length}");
       print("Step.4");
-      DocumentSnapshot post1 = await appData.addPostMessageDocument(event, user, "DevFest Kyoto 2018 始まった");
+      DocumentSnapshot post1 = await appData.addPostMessageDocument(event, user, "DevFest Kyoto 2018 始まった", null);
       print("Step.5");
-      DocumentSnapshot post2 = await appData.addPostMessageDocument(event, user, "Kotlin イケイケですね~。");
+      DocumentSnapshot post2 = await appData.addPostMessageDocument(event, user, "Kotlin イケイケですね~。", null);
       print("Step.6");
-      DocumentSnapshot post3 = await appData.addPostMessageDocument(event, user, "Flutter 頑張れ。");
+      DocumentSnapshot post3 = await appData.addPostMessageDocument(event, user, "Flutter 頑張れ。", null);
       print("Step.7");
-      DocumentSnapshot post4 = await appData.addPostMessageDocument(event, user, "ちょっと休憩？");
+      DocumentSnapshot post4 = await appData.addPostMessageDocument(event, user, "ちょっと休憩？", null);
       await appData.deletePostMessageDocument(post4, user);
 
       print("Step.8");
@@ -421,10 +452,10 @@ class AppDataExample {
       int index = 0;
       postMessageList.forEach((DocumentSnapshot docSnap) {
         Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
-        debugPrint("postMessage[${index++}]{\n  user=${map["DISPLAY_NAME"]}\n  icon=${map["PHOTO_URL"]}\n  ${map["MESSAGE"]}\n  edit=${map["EDITED"]}\n  delete=${map["DELETED"]}\n}"); // FIXME
+        debugPrint("postMessage[${index++}]{\n  user=${map["DISPLAY_NAME"]}\n  icon=${map["ICON_URL"]}\n  ${map["MESSAGE"]}\n  image=${map["IMAGE_URL"]}\n  edit=${map["EDITED"]}\n  delete=${map["DELETED"]}\n}"); // FIXME
       });
       print("Step.11");
-      await appData.updatePostMessageDocument(post3, user, "Flutter やるじゃん。");
+      await appData.updatePostMessageDocument(post3, user, "Flutter やるじゃん。", null);
       print("Step.12");
 
     } catch(error) {
@@ -447,7 +478,7 @@ class AppDataExample {
       DocumentSnapshot admin = await appData.getAdminDocument(user.uid, user);
       if (admin != null) {
         Map<String, dynamic> map = FirestoreService.getProperties(admin);
-        print("Admin=${map['OWNER_DISPLAY_NAME']}");
+        print("Admin=${map['MEMBER_DISPLAY_NAME']}");
       } else{
         print("Admin is null");
       }
@@ -458,7 +489,7 @@ class AppDataExample {
         index = 0;
         admins.forEach((DocumentSnapshot docSnap){
           Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
-          print("Admin[${index++}]=${map['OWNER_DISPLAY_NAME']}");
+          print("Admin[${index++}]=${map['MEMBER_DISPLAY_NAME']}");
         });
       } else {
         print("Admins is null");
@@ -477,7 +508,7 @@ class AppDataExample {
       index = 0;
       postDocuments.forEach((DocumentSnapshot docSnap){
         Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
-        print("PostMessage[${index++}]=${map['MESSAGE']}, edit=${map['EDITED']}, delete=${map['DELETED']}");
+        print("PostMessage[${index++}]=${map['MESSAGE']}, imageUrl=${map['IMAGE_URL']}, edit=${map['EDITED']}, delete=${map['DELETED']}");
       });
       print("Step.5");
       CollectionReference editMessages = appData.getEditMessageCollection(postDocuments[2]);
@@ -486,7 +517,7 @@ class AppDataExample {
         index = 0;
         editDocuments.forEach((DocumentSnapshot docSnap){
           Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
-          print("editMessage[${index++}]=${map['MESSAGE']}, ${map["BEFORE_MESSAGE"]}");
+          print("editMessage[${index++}]=${map['MESSAGE']}, ${map['BEFORE_MESSAGE']}, ${map['IMAGE_URL']}, ${map['BEFORR_IMAGE_URL']}");
         });
       } else {
         print("editMessage is null");
