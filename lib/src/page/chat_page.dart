@@ -54,7 +54,7 @@ class ChatMessage extends StatelessWidget {
           children: <Widget>[
             new Container(
               margin: const EdgeInsets.only(right: 16.0),
-              child: new CircleAvatar(backgroundImage: new NetworkImage(snapshot.data['PHOTO_URL'])),
+              child: new CircleAvatar(backgroundImage: new NetworkImage(snapshot.data['ICON_URL'])),
             ),
             new Expanded(
               child: new Column(
@@ -92,6 +92,7 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
   bool _isComposing = false;
   SignInState _signIn;
   AppDataState _appData;
+  bool _isLatestPostMessages = false;
   List<Widget> _latestPostMessages = <Widget>[];
 
   Animation<double> animation;
@@ -121,7 +122,7 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
     _appData = DevFestStateProvider.of(context).appData;
 
     /// 最新の投稿メッセージ一覧を非同期で取得させる。
-    if (_latestPostMessages == null || _latestPostMessages.isEmpty) {
+    if (!_isLatestPostMessages) {
       _setupLatestPostMessages();
     }
 
@@ -214,55 +215,55 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
     setState(() {
       _isComposing = false;
     });
-    _sendMessage(text: text);
+    _sendMessage(message: text);
   }
 
-  void _sendMessage({ String text, String imageUrl }) {
-    debugPrint("_sendMessage  message=${text}, imageUrl=${imageUrl}"); // FIXME 仕様が判明するまで仮実装
-//    _appData.addPostMessageDocument(event, user, message);
-    /*
-    reference.push().set({
-      'text': text,
-      'imageUrl': imageUrl,
-      'senderName': googleSignIn.currentUser.displayName,
-      'senderPhotoUrl': googleSignIn.currentUser.photoUrl,
-    });
-    */
+  void _sendMessage({ String message, String imageUrl }) {
+    debugPrint("_sendMessage  message=$message, imageUrl=$imageUrl");
+    _appData.addPostMessageDocument(_appData.postMessagesSelectorEvent, _signIn.user, message, imageUrl);
   }
 
   /// 最新のイベントへの投稿メッセージ一覧を取得する。
   Future<void> _setupLatestPostMessages() async {
+    if (_latestPostMessages == null) {
+      _latestPostMessages = <Widget>[];
+    }
 
-    // FIXME イベントを仮取得する
+    // イベントの投稿メッセージ一覧
+    List<DocumentSnapshot> postMessageList;
+
+    // FIXME イベントを仮選択取得する
     List<DocumentSnapshot> eventDocuments = await _appData.getEventDocuments();
-    DocumentSnapshot eventSnap = eventDocuments[0];
+    if (eventDocuments.isNotEmpty) {
+      DocumentSnapshot eventSnap = eventDocuments[0];
 
-    // イベントの投稿メッセージ・コレクションから投稿メッセージ一覧を取得する
-    CollectionReference postMessages = _appData.getPostMessageCollection(eventSnap);
-    List<DocumentSnapshot> postMessageList = await _appData.getPostMessageDocuments(postMessages);
-
-    if (postMessageList == null || postMessageList.isEmpty) {
-      return <Widget>[];
+      // イベントの投稿メッセージ・コレクションから投稿メッセージ一覧を取得する
+      CollectionReference postMessages = _appData.getPostMessageCollection(eventSnap);
+      postMessageList = await _appData.getPostMessageDocuments(postMessages);
     }
 
-    if (true) {
-      // デバッグ出力
-      int index = 0;
-      for(DocumentSnapshot postMessage in postMessageList){
-        print("postMessage[${index++}]=${postMessage.data['MESSAGE']}");
-      }
+    // デバッグ出力
+    int index = 0;
+    for(DocumentSnapshot postMessage in postMessageList){
+      String message = postMessage.data['MESSAGE'];
+      String imageUrl = postMessage.data['IMAGE_URL'];
+      debugPrint("postMessage[${index++}]=${message != null ? message : imageUrl}");
     }
 
-    _latestPostMessages = postMessageList.map<Widget>((it){
-      return
-        new ChatMessage(
-            snapshot: it,
+    // 投稿リストを最新化
+    _latestPostMessages = <Widget>[];
+    for (DocumentSnapshot postMessage in postMessageList) {
+      if (postMessage.data["DELETED"]) continue;
+      _latestPostMessages.add(
+          new ChatMessage(
+            snapshot: postMessage,
             animation: animation,
-        );
-    }).toList();
+          ));
+    }
 
     // 画面を更新
     setState(() {
+      _isLatestPostMessages = true;
     });
   }
 
