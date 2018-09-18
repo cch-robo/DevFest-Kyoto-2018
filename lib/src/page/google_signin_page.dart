@@ -96,7 +96,9 @@ class SignInPageState extends State<SignInPage> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: <Widget>[
           const Text("You are not currently signed in."),
-          new FlatButton(
+          new RaisedButton(
+              padding: EdgeInsets.all(0.0),
+              color: Colors.white,
               child: Image.asset(
                 'assets/images/btn_google_signin_dark_normal_web_2x.png',
                 width: 200.0,
