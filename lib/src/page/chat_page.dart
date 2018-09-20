@@ -242,6 +242,7 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
       postMessageList = await _appData.getPostMessageDocuments(postMessages);
     }
 
+    // FIXME postMessageList がnullの場合の対処を追加すること
     // デバッグ出力
     int index = 0;
     for(DocumentSnapshot postMessage in postMessageList){

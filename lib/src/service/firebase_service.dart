@@ -26,6 +26,40 @@ class FirestoreService {
     return firestore.collection(collectionName);
   }
 
+  /// FIXME コレクションのイベントリスナーを生成
+  ///
+  /// コレクションに、各ドキュメント更新/生成イベント時の処理関数のイベントリスナーを登録します。
+  static Future<StreamSubscription<QuerySnapshot>> createEventListener(
+      CollectionReference collection,
+      void Function(QuerySnapshot document) onEvent,
+      {Function onError, void onDone()}) async {
+
+    // ドキュメント更新/生成のイベントを扱えるよう、
+    // コレクションの Stream<QuerySnapshot> に、
+    // 引数の onEvnt(QuerySnapshot) 関数を登録します。
+    // Stream<QuerySnapshot>#listen((QuerySnapshot snapshot){/* 何らかの処理 */})
+    Stream<QuerySnapshot> stream = collection.snapshots();
+    StreamSubscription<QuerySnapshot> streamSubscription = stream.listen(
+        onEvent, onError: onError, onDone: onDone, cancelOnError: true);
+
+    // 初回 onEvent() コールバック時には、生成済みのドキュメント/snapshotが渡されるため、
+    // 新規生成/更新ドキュメントのみを対象とするよう（全てのドキュメント/snapshotを対象としないよう）
+    // 予め全ての生成済みのドキュメント/snapshotを取得しておきます。
+    (await collection.getDocuments());
+
+    return streamSubscription;
+  }
+
+  /// FIXME コレクションのイベントリスナーをクリア
+  ///
+  /// コレクションから、各ドキュメント更新/生成イベント時の処理関数をクリアします。
+  static void clearEventListener(StreamSubscription<QuerySnapshot> streamSubscription) {
+    if (streamSubscription == null) return;
+
+    // コレクションの Stream から、ドキュメント更新/生成のイベントの処理先やフラグを全クリアします。
+    streamSubscription.cancel();
+  }
+
   /// コレクションから、現時点のドキュメント一覧を取得
   static Future<List<DocumentSnapshot>> getDocuments(CollectionReference collection) async {
     final QuerySnapshot querySnapshot = await collection.getDocuments();

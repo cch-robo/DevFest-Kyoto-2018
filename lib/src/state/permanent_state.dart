@@ -18,6 +18,10 @@ class AppDataState {
 
   DocumentSnapshot _postMessagesSelectorEvent;
   DocumentSnapshot _editMessagesSelectorPostMessage;
+  StreamSubscription<QuerySnapshot> _adminsCollectionEventListener;
+  StreamSubscription<QuerySnapshot> _eventsCollectionEventListener;
+  StreamSubscription<QuerySnapshot> _postMessagesCollectionEventListener;
+  StreamSubscription<QuerySnapshot> _editMessagesCollectionEventListener;
 
   final String adminCollectionName = "evtn_admins";
   final String adminDocumentPrefix = "evtn_admin";
@@ -78,6 +82,61 @@ class AppDataState {
     // 編集メッセージを投稿メッセージ・ドキュメントのサブコレクションにする。
     return postMessageSnap.reference.collection(map["SUB_COLLECTION"]);
   }
+
+  /// FIXME 管理者にドキュメント作成/更新イベント時の処理関数を登録
+  Future<void> registerAdminEventListener(FirebaseUser user, void Function(QuerySnapshot document) onEvent) async {
+    if (! await isAdminUser(user)) {
+      _adminsCollectionEventListener = null;
+      return;
+    }
+    _adminsCollectionEventListener = await FirestoreService.createEventListener(_admins, onEvent);
+  }
+  /// FIXME イベントにドキュメント作成/更新イベント時の処理関数を登録
+  Future<void> registerEventEventListener(void Function(QuerySnapshot document) onEvent) async {
+    _eventsCollectionEventListener = await FirestoreService.createEventListener(_events, onEvent);
+  }
+  /// FIXME 投稿メッセージにドキュメント作成/更新イベント時の処理関数を登録
+  Future<void> registerPostMessageEventListener(DocumentSnapshot event, void Function(QuerySnapshot document) onEvent) async {
+    _postMessagesSelectorEvent = event;
+    CollectionReference postMessages = getPostMessageCollection(event);
+    _postMessagesCollectionEventListener = await FirestoreService.createEventListener(postMessages, onEvent);
+  }
+  /// FIXME 編集メッセージにドキュメント作成/更新イベント時の処理関数を登録
+  Future<void> registerEditMessageEventListener(CollectionReference editMessages, FirebaseUser user, void Function(QuerySnapshot document) onEvent) async {
+    List<DocumentSnapshot> editMessageList = await FirestoreService.getDocuments(editMessages);
+    if(editMessageList != null && editMessageList.isNotEmpty
+        && ! await isDocumentOwnerUser(editMessageList[0], user)) {
+      _editMessagesCollectionEventListener = null;
+      return;
+    }
+    _editMessagesCollectionEventListener = await FirestoreService.createEventListener(editMessages, onEvent);
+  }
+
+  /// FIXME 管理者からドキュメント作成/更新イベント時の処理関数をクリア
+  Future<void> clearAdminEventListener(FirebaseUser user) async {
+    if (! await isAdminUser(user)) return;
+    FirestoreService.clearEventListener(_adminsCollectionEventListener);
+  }
+  /// FIXME イベントからドキュメント作成/更新イベント時の処理関数をクリア
+  Future<void> clearEventEventListener() async {
+    FirestoreService.clearEventListener(_eventsCollectionEventListener);
+  }
+  /// FIXME 投稿メッセージからドキュメント作成/更新イベント時の処理関数をクリア
+  Future<void> clearPostMessageEventListener(DocumentSnapshot event) async {
+    _postMessagesSelectorEvent = event;
+    CollectionReference postMessages = getPostMessageCollection(event);
+    FirestoreService.clearEventListener(_postMessagesCollectionEventListener);
+  }
+  /// FIXME 編集メッセージからドキュメント作成/更新イベント時の処理関数をクリア
+  Future<void> clearEditMessageEventListener(StreamSubscription<QuerySnapshot> eventListener, CollectionReference editMessages, FirebaseUser user) async {
+    List<DocumentSnapshot> editMessageList = await FirestoreService.getDocuments(editMessages);
+    if(editMessageList != null && editMessageList.isNotEmpty
+        && ! await isDocumentOwnerUser(editMessageList[0], user)) {
+      return;
+    }
+    FirestoreService.clearEventListener(_editMessagesCollectionEventListener);
+  }
+
 
   /// 管理者一覧を取得
   Future<List<DocumentSnapshot>> getAdminDocuments(FirebaseUser user) async {
@@ -432,8 +491,20 @@ class AppDataExample {
           2018, 9, 24, 13, 30, 16, 30, "kyoto", user, "DevFest Kyoto 2018", "GDG Kyoto's DevFest", "Kyoto");
       print("Step.3");
 
+// FIXME
+print("before registerPostMessageEventListener");
+await appData.registerPostMessageEventListener(event, (QuerySnapshot docSnap) {
+  List<DocumentChange> changes = docSnap.documentChanges;
+  changes.forEach((DocumentChange change) {
+    print("Event postMessage={MESSAGE=${change.document.data['MESSAGE']}, TIMESTAMP=${change.document.data['TIMESTAMP']}");
+  });
+});
+print("after registerPostMessageEventListener");
+
+print("before getEventDocuments");
       List<DocumentSnapshot> events = await appData.getEventDocuments();
       print("getEventDocuments  events=${events.length}");
+print("after getEventDocuments");
       print("Step.4");
       DocumentSnapshot post1 = await appData.addPostMessageDocument(event, user, "DevFest Kyoto 2018 始まった", null);
       print("Step.5");
@@ -441,8 +512,16 @@ class AppDataExample {
       print("Step.6");
       DocumentSnapshot post3 = await appData.addPostMessageDocument(event, user, "Flutter 頑張れ。", null);
       print("Step.7");
+print("before addPostMessageDocument");
       DocumentSnapshot post4 = await appData.addPostMessageDocument(event, user, "ちょっと休憩？", null);
+print("after addPostMessageDocument");
+// FIXME
+print("before clearPostMessageEvent");
+await appData.clearPostMessageEventListener(event);
+print("after deletePostMessageDocument");
+print("before clearPostMessageEventListener");
       await appData.deletePostMessageDocument(post4, user);
+print("after clearPostMessageEventListener");
 
       print("Step.8");
       CollectionReference postMessages = appData.getPostMessageCollection(event);
