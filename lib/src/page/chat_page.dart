@@ -67,7 +67,7 @@ class ChatMessage extends StatelessWidget {
                     margin: const EdgeInsets.only(top: 5.0),
                     child: snapshot.data['IMAGE_URL'] != null ?
                     new Image.network(
-                      snapshot.data['IMAGE_URL'], // FIXME IMAGE_URL という新プロパティが追加されている。
+                      snapshot.data['IMAGE_URL'],
                       width: 250.0,
                     ) :
                     new Text(snapshot.data['MESSAGE']),
@@ -240,9 +240,10 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
       // イベントの投稿メッセージ・コレクションから投稿メッセージ一覧を取得する
       CollectionReference postMessages = _appData.getPostMessageCollection(eventSnap);
       postMessageList = await _appData.getPostMessageDocuments(postMessages);
+    } else {
+      postMessageList = <DocumentSnapshot>[];
     }
 
-    // FIXME postMessageList がnullの場合の対処を追加すること
     // デバッグ出力
     int index = 0;
     for(DocumentSnapshot postMessage in postMessageList){
