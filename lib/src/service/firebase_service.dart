@@ -26,38 +26,47 @@ class FirestoreService {
     return firestore.collection(collectionName);
   }
 
-  /// FIXME コレクションのイベントリスナーを生成
+  /// コレクションにイベントリスナーを追加
   ///
-  /// コレクションに、各ドキュメント更新/生成イベント時の処理関数のイベントリスナーを登録します。
-  static Future<StreamSubscription<QuerySnapshot>> createEventListener(
+  /// コレクションに、各ドキュメント更新/生成イベント時の処理関数のイベントリスナーを追加します。
+  static Future<StreamSubscription<QuerySnapshot>> addCollectionEventListener(
       CollectionReference collection,
       void Function(QuerySnapshot document) onEvent,
       {Function onError, void onDone()}) async {
 
     // ドキュメント更新/生成のイベントを扱えるよう、
     // コレクションの Stream<QuerySnapshot> に、
-    // 引数の onEvnt(QuerySnapshot) 関数を登録します。
+    // 引数の onEvent(QuerySnapshot) 関数を登録します。
     // Stream<QuerySnapshot>#listen((QuerySnapshot snapshot){/* 何らかの処理 */})
+    //
+    // 【注意】
+    // 初回 onEvent() コールバック時には、
+    // documentChanges:List<DocumentChange> に生成済みのドキュメント/snapshotが渡されるため、
+    // 新規生成/更新ドキュメントのみを対象とするよう（全てのドキュメント/snapshotを対象としないよう）
+    // 予め初回のみスキップさせるよう設定し、全ての生成済みのドキュメント/snapshotを取得しておきます。
+    //
+    // 【参考】
+    //　Single-Subscription vs. Broadcast Streams
+    //　https://www.dartlang.org/articles/libraries/broadcast-streams
     Stream<QuerySnapshot> stream = collection.snapshots();
-    StreamSubscription<QuerySnapshot> streamSubscription = stream.listen(
+    Stream<QuerySnapshot> firstSkipStream = stream.skip(1); // 初回のみ処理をスキップ
+    StreamSubscription<QuerySnapshot> streamSubscription = firstSkipStream.listen(
         onEvent, onError: onError, onDone: onDone, cancelOnError: true);
 
-    // 初回 onEvent() コールバック時には、生成済みのドキュメント/snapshotが渡されるため、
-    // 新規生成/更新ドキュメントのみを対象とするよう（全てのドキュメント/snapshotを対象としないよう）
-    // 予め全ての生成済みのドキュメント/snapshotを取得しておきます。
-    (await collection.getDocuments());
+    // 予めドキュメントを生成/更新しない初回イベントをダミーで実行させます。
+    await collection.getDocuments();
 
     return streamSubscription;
   }
 
-  /// FIXME コレクションのイベントリスナーをクリア
+  /// コレクションのイベントリスナーを削除
   ///
-  /// コレクションから、各ドキュメント更新/生成イベント時の処理関数をクリアします。
-  static void clearEventListener(StreamSubscription<QuerySnapshot> streamSubscription) {
-    if (streamSubscription == null) return;
+  /// コレクションに追加した、各ドキュメント更新/生成イベント時の処理関数のイベントリスナーを無効化(削除)します。
+  static void removeCollectionEventListener(StreamSubscription<QuerySnapshot> collectionEventListener) {
+    if (collectionEventListener == null) return;
 
-    // コレクションの Stream から、ドキュメント更新/生成のイベントの処理先やフラグを全クリアします。
-    streamSubscription.cancel();
+    // コレクションの Stream から、ドキュメント更新/生成のイベントの処理先をクリアします。
+    collectionEventListener.cancel();
   }
 
   /// コレクションから、現時点のドキュメント一覧を取得
