@@ -92,8 +92,8 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
   bool _isComposing = false;
   SignInState _signIn;
   AppDataState _appData;
-  bool _isSetup = true;
-  List<DocumentSnapshot> _latestPostMessages = <DocumentSnapshot>[];
+  bool _isSetup;
+  List<DocumentSnapshot> _latestPostMessages;
 
   Animation<double> animation;
   AnimationController controller;
@@ -106,14 +106,12 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
     final CurvedAnimation curve = CurvedAnimation(parent: controller, curve: Curves.easeIn);
     animation = Tween(begin: 0.0, end: 1.0).animate(curve);
     controller.forward();
+    _isSetup = true;
+    _latestPostMessages = <DocumentSnapshot>[];
   }
 
   dispose() {
     controller.dispose();
-    /*
-    /// 投稿メッセージの追加/更新イベントリスナーを削除する。
-    _appData.removePostMessageEventListener(_appData.postMessagesSelectorEvent);
-    */
     super.dispose();
   }
 
@@ -243,7 +241,11 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
   /// 非同期遅延セットアップ
   Future<void> _lateSetup(BuildContext context) async {
     if (!_isSetup) return; // 二重セットアップ抑止
-    debugPrint("_lateSetup  called.");
+
+    /// 投稿メッセージの追加/更新イベントリスナーが設定されていれば削除する。
+    if(_appData.postMessagesSelectorEvent != null){
+      _appData.removePostMessageEventListener(_appData.postMessagesSelectorEvent);
+    }
 
     /// ListView のスクロールコントローラ生成
     scrollController = ScrollController();
