@@ -170,7 +170,7 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
               margin: new EdgeInsets.symmetric(horizontal: 4.0),
               child: new IconButton(
                   icon: new Icon(Icons.photo_camera),
-                  onPressed: () async {
+                  onPressed: _isComposing ? null: () async {
                     /// イメージピッカーで選択したギャラリー画像を、Firebase Storage にアップロードする。
                     /// (カメラ画像にする場合は、picImage の source: に ImageSource.camera を指定してください)
                     ///
