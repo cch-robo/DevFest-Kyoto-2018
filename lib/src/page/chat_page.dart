@@ -92,11 +92,13 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
   bool _isComposing = false;
   SignInState _signIn;
   AppDataState _appData;
-  bool _isInitialized = false;
-  List<Widget> _latestPostMessages = <Widget>[];
+  bool _isSetup = true;
+  List<DocumentSnapshot> _latestPostMessages = <DocumentSnapshot>[];
+  List<Widget> _latestPostMessageWidgets = <Widget>[];
 
   Animation<double> animation;
   AnimationController controller;
+  ScrollController scrollController;
 
   initState() {
     super.initState();
@@ -123,8 +125,14 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
     /// アプリ全体共有の永続化情報を取得
     _appData = DevFestStateProvider.of(context).appData;
 
-    /// 非同期遅延セットアップ
-    _lateSetup();
+    if (_isSetup) {
+      /// 非同期遅延セットアップ
+      _lateSetup(context);
+
+    } else {
+      /// 最新の投稿メッセージ・ウイジェット一覧を設定
+      _setupLatestPostMessages(_latestPostMessages);
+    }
 
     return new Scaffold(
         appBar: new AppBar(
@@ -134,7 +142,8 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
         body: new Column(children: <Widget>[
           new Flexible(
             child: new ListView(
-              children: _latestPostMessages,
+              controller: scrollController,
+              children: _latestPostMessageWidgets,
             ),
           ),
           new Divider(height: 1.0),
@@ -169,7 +178,7 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
                         .ref().child("evtn_event").child("image_$random.jpg");
                     StorageUploadTask uploadTask = ref.putFile(imageFile);
                     Uri downloadUrl = (await uploadTask.future).downloadUrl;
-                    _sendMessage(imageUrl: downloadUrl.toString());
+                    await _sendMessage(imageUrl: downloadUrl.toString());
                   }
               ),
             ),
@@ -215,18 +224,22 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
     setState(() {
       _isComposing = false;
     });
-    _sendMessage(message: text);
+    await _sendMessage(message: text);
   }
 
-  void _sendMessage({ String message, String imageUrl }) {
+  Future<void> _sendMessage({ String message, String imageUrl }) async {
     debugPrint("_sendMessage  message=$message, imageUrl=$imageUrl");
     if (_appData.postMessagesSelectorEvent == null) return;
-    _appData.addPostMessageDocument(_appData.postMessagesSelectorEvent, _signIn.user, message, imageUrl);
+    await _appData.addPostMessageDocument(_appData.postMessagesSelectorEvent, _signIn.user, message, imageUrl);
   }
 
   /// 非同期遅延セットアップ
   Future<void> _lateSetup(BuildContext context) async {
-    if (_isInitialized) return;
+    if (!_isSetup) return; // 二重セットアップ抑止
+    debugPrint("_lateSetup  called.");
+
+    /// ListView のスクロールコントローラ生成
+    scrollController = ScrollController();
 
     /// 投稿メッセージの追加/更新イベントリスナーを登録する。
     List<DocumentSnapshot> eventDocuments = await _appData.getEventDocuments();
@@ -237,9 +250,13 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
       /// 投稿メッセージの追加/更新イベント時の処理を登録
       await _appData.setPostMessageEventListener(eventSnap,
               (QuerySnapshot querySnap){
+                debugPrint("PostMessageEvent  changes=${querySnap.documentChanges.length}");
 
-                /// 最新の投稿メッセージ・ウイジェット一覧を設定
-                _setupLatestPostMessages(querySnap.documents);
+                /// 最新の投稿メッセージ一覧を設定
+                _latestPostMessages = querySnap.documents;
+
+                /// 画面更新
+                setState(() {});
               });
 
       /// イベントの投稿メッセージ一覧を取得
@@ -247,15 +264,19 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
       CollectionReference postMessages = _appData.getPostMessageCollection(_appData.postMessagesSelectorEvent);
       postMessageList = await _appData.getPostMessageDocuments(postMessages);
 
-      /// 最新の投稿メッセージ・ウイジェット一覧を設定
-      _setupLatestPostMessages(postMessageList);
+      /// 最新の投稿メッセージ一覧を設定
+      _latestPostMessages = postMessageList;
+
+      /// 画面更新
+      setState(() {});
+
     } else {
       // FIXME イベントを仮選択しているための暫定処理
       /// イベント一覧がなければ、イベントに紐づくメッセージ投稿ができないので画面を戻す。
       Navigator.pop(context);
     }
 
-    _isInitialized = true;
+    _isSetup = false;
   }
 
   /// 最新の投稿メッセージ・ウイジェット一覧を設定する。
@@ -269,19 +290,46 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
     }
 
     // 投稿リストを最新化
-    _latestPostMessages = <Widget>[];
+    _latestPostMessageWidgets = <Widget>[];
     for (DocumentSnapshot postMessage in postMessageList) {
       if (postMessage.data["DELETED"]) continue;
-      _latestPostMessages.add(
+      _latestPostMessageWidgets.add(
           new ChatMessage(
             snapshot: postMessage,
             animation: animation,
           ));
     }
 
-    // 画面を更新
-    setState(() {
-    });
+    /// 遅延投稿メッセージ一覧スクロール
+    _lateScrollToLastPostMessage();
+  }
+
+  /// 遅延投稿メッセージ一覧スクロール
+  ///
+  /// 非同期にして遅延実行させることにより、
+  /// 投稿メッセージ一覧が設定されてから最終メッセージまでスクロールさせる。
+  Future<void> _lateScrollToLastPostMessage() async {
+    // 実行待機
+    await Future.delayed(Duration(milliseconds: 500));
+
+    // スクロールポジション情報を取得
+    ScrollPosition scrollPosition = scrollController.position;
+
+    // 各種スクロール情報のデバッグ出力
+    debugPrint("_setupLatestPostMessages  scrollPosition={"
+        +"\n  minScrollExtent=${scrollPosition.minScrollExtent},"
+        +"\n  maxScrollExtent=${scrollPosition.maxScrollExtent},"
+        +"\n  extentInside=${scrollPosition.extentInside},"
+        +"\n  extentAfter=${scrollPosition.extentAfter},"
+        +"\n  extentBefore=${scrollPosition.extentBefore},"
+        +"\n  pixels=${scrollPosition.pixels},"
+        +"\n  physics=${scrollPosition.physics},"
+        +"\n  viewportDimension=${scrollPosition.viewportDimension}"
+        +"\n}");
+
+    // (ListView ⇒ 投稿メッセージ一覧を)スクロール可能な最大位置までスクロールさせます。
+    double offset = scrollPosition.maxScrollExtent;
+    scrollController.animateTo(offset, duration: Duration(milliseconds: 500), curve: Curves.ease);
   }
 
 }
