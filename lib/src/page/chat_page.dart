@@ -94,7 +94,6 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
   AppDataState _appData;
   bool _isSetup = true;
   List<DocumentSnapshot> _latestPostMessages = <DocumentSnapshot>[];
-  List<Widget> _latestPostMessageWidgets = <Widget>[];
 
   Animation<double> animation;
   AnimationController controller;
@@ -111,8 +110,10 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
 
   dispose() {
     controller.dispose();
+    /*
     /// 投稿メッセージの追加/更新イベントリスナーを削除する。
     _appData.removePostMessageEventListener(_appData.postMessagesSelectorEvent);
+    */
     super.dispose();
   }
 
@@ -141,9 +142,15 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
         ),
         body: new Column(children: <Widget>[
           new Flexible(
-            child: new ListView(
+            child: new ListView.builder(
               controller: scrollController,
-              children: _latestPostMessageWidgets,
+              itemCount: _latestPostMessages.length,
+              itemBuilder: (BuildContext context, int index) {
+                return new ChatMessage(
+                      snapshot: _latestPostMessages[index],
+                      animation: animation,
+                    );
+              },
             ),
           ),
           new Divider(height: 1.0),
@@ -253,7 +260,10 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
                 debugPrint("PostMessageEvent  changes=${querySnap.documentChanges.length}");
 
                 /// 最新の投稿メッセージ一覧を設定
-                _latestPostMessages = querySnap.documents;
+                _latestPostMessages = querySnap.documents.where(
+                    (DocumentSnapshot docSnap) {
+                      return !docSnap.data["DELETED"];
+                    }).toList();
 
                 /// 画面更新
                 setState(() {});
@@ -265,7 +275,10 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
       postMessageList = await _appData.getPostMessageDocuments(postMessages);
 
       /// 最新の投稿メッセージ一覧を設定
-      _latestPostMessages = postMessageList;
+      _latestPostMessages = postMessageList.where(
+              (DocumentSnapshot docSnap) {
+                return !docSnap.data["DELETED"];
+              }).toList();
 
       /// 画面更新
       setState(() {});
@@ -287,17 +300,6 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
       String message = postMessage.data['MESSAGE'];
       String imageUrl = postMessage.data['IMAGE_URL'];
       debugPrint("postMessage[${index++}]=${message != null ? message : imageUrl}");
-    }
-
-    // 投稿リストを最新化
-    _latestPostMessageWidgets = <Widget>[];
-    for (DocumentSnapshot postMessage in postMessageList) {
-      if (postMessage.data["DELETED"]) continue;
-      _latestPostMessageWidgets.add(
-          new ChatMessage(
-            snapshot: postMessage,
-            animation: animation,
-          ));
     }
 
     /// 遅延投稿メッセージ一覧スクロール
