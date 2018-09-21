@@ -92,7 +92,7 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
   bool _isComposing = false;
   SignInState _signIn;
   AppDataState _appData;
-  bool _isLatestPostMessages = false;
+  bool _isInitialized = false;
   List<Widget> _latestPostMessages = <Widget>[];
 
   Animation<double> animation;
@@ -109,6 +109,8 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
 
   dispose() {
     controller.dispose();
+    /// 投稿メッセージの追加/更新イベントリスナーを削除する。
+    _appData.removePostMessageEventListener(_appData.postMessagesSelectorEvent);
     super.dispose();
   }
 
@@ -121,10 +123,8 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
     /// アプリ全体共有の永続化情報を取得
     _appData = DevFestStateProvider.of(context).appData;
 
-    /// 最新の投稿メッセージ一覧を非同期で取得させる。
-    if (!_isLatestPostMessages) {
-      _setupLatestPostMessages();
-    }
+    /// 非同期遅延セットアップ
+    _lateSetup();
 
     return new Scaffold(
         appBar: new AppBar(
@@ -220,30 +220,46 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
 
   void _sendMessage({ String message, String imageUrl }) {
     debugPrint("_sendMessage  message=$message, imageUrl=$imageUrl");
+    if (_appData.postMessagesSelectorEvent == null) return;
     _appData.addPostMessageDocument(_appData.postMessagesSelectorEvent, _signIn.user, message, imageUrl);
   }
 
-  /// 最新のイベントへの投稿メッセージ一覧を取得する。
-  Future<void> _setupLatestPostMessages() async {
-    if (_latestPostMessages == null) {
-      _latestPostMessages = <Widget>[];
-    }
+  /// 非同期遅延セットアップ
+  Future<void> _lateSetup(BuildContext context) async {
+    if (_isInitialized) return;
 
-    // イベントの投稿メッセージ一覧
-    List<DocumentSnapshot> postMessageList;
-
-    // FIXME イベントを仮選択取得する
+    /// 投稿メッセージの追加/更新イベントリスナーを登録する。
     List<DocumentSnapshot> eventDocuments = await _appData.getEventDocuments();
     if (eventDocuments.isNotEmpty) {
+      // FIXME イベントを仮選択取得する
       DocumentSnapshot eventSnap = eventDocuments[0];
 
-      // イベントの投稿メッセージ・コレクションから投稿メッセージ一覧を取得する
-      CollectionReference postMessages = _appData.getPostMessageCollection(eventSnap);
+      /// 投稿メッセージの追加/更新イベント時の処理を登録
+      await _appData.setPostMessageEventListener(eventSnap,
+              (QuerySnapshot querySnap){
+
+                /// 最新の投稿メッセージ・ウイジェット一覧を設定
+                _setupLatestPostMessages(querySnap.documents);
+              });
+
+      /// イベントの投稿メッセージ一覧を取得
+      List<DocumentSnapshot> postMessageList;
+      CollectionReference postMessages = _appData.getPostMessageCollection(_appData.postMessagesSelectorEvent);
       postMessageList = await _appData.getPostMessageDocuments(postMessages);
+
+      /// 最新の投稿メッセージ・ウイジェット一覧を設定
+      _setupLatestPostMessages(postMessageList);
     } else {
-      postMessageList = <DocumentSnapshot>[];
+      // FIXME イベントを仮選択しているための暫定処理
+      /// イベント一覧がなければ、イベントに紐づくメッセージ投稿ができないので画面を戻す。
+      Navigator.pop(context);
     }
 
+    _isInitialized = true;
+  }
+
+  /// 最新の投稿メッセージ・ウイジェット一覧を設定する。
+  void _setupLatestPostMessages(List<DocumentSnapshot> postMessageList) {
     // デバッグ出力
     int index = 0;
     for(DocumentSnapshot postMessage in postMessageList){
@@ -265,7 +281,6 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
 
     // 画面を更新
     setState(() {
-      _isLatestPostMessages = true;
     });
   }
 
