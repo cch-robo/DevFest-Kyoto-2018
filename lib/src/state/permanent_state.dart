@@ -20,8 +20,8 @@ class AppDataState {
   DocumentSnapshot _editMessagesSelectorPostMessage;
   StreamSubscription<QuerySnapshot> _adminsCollectionEventListener;
   StreamSubscription<QuerySnapshot> _eventsCollectionEventListener;
-  StreamSubscription<QuerySnapshot> _postMessagesCollectionEventListener;
-  StreamSubscription<QuerySnapshot> _editMessagesCollectionEventListener;
+  Map<String, StreamSubscription<QuerySnapshot>> _postMessagesCollectionEventListenerMap = Map<String, StreamSubscription<QuerySnapshot>>();
+  Map<String, StreamSubscription<QuerySnapshot>> _editMessagesCollectionEventListenerMap = Map<String, StreamSubscription<QuerySnapshot>>();
 
   final String adminCollectionName = "evtn_admins";
   final String adminDocumentPrefix = "evtn_admin";
@@ -83,60 +83,92 @@ class AppDataState {
     return postMessageSnap.reference.collection(map["SUB_COLLECTION"]);
   }
 
-  /// FIXME 管理者にドキュメント作成/更新イベント時の処理関数を登録
-  Future<void> registerAdminEventListener(FirebaseUser user, void Function(QuerySnapshot document) onEvent) async {
+  /// 管理者にドキュメント作成/更新イベント時の処理関数(イベントリスナー)を登録
+  Future<void> setAdminEventListener(FirebaseUser user, void Function(QuerySnapshot document) onEvent) async {
     if (! await isAdminUser(user)) {
-      _adminsCollectionEventListener = null;
+      // 管理者が存在しない場合、イベントリスナーが登録されないことに注意
       return;
     }
-    _adminsCollectionEventListener = await FirestoreService.createEventListener(_admins, onEvent);
+    if (_adminsCollectionEventListener != null) {
+      return; // 多重登録を抑止
+    }
+    _adminsCollectionEventListener = await FirestoreService.addCollectionEventListener(_admins, onEvent);
   }
-  /// FIXME イベントにドキュメント作成/更新イベント時の処理関数を登録
-  Future<void> registerEventEventListener(void Function(QuerySnapshot document) onEvent) async {
-    _eventsCollectionEventListener = await FirestoreService.createEventListener(_events, onEvent);
+
+  /// イベントにドキュメント作成/更新イベント時の処理関数(イベントリスナー)を登録
+  Future<void> setEventEventListener(void Function(QuerySnapshot document) onEvent) async {
+    if (_eventsCollectionEventListener != null) {
+      return; // 多重登録を抑止
+    }
+    _eventsCollectionEventListener = await FirestoreService.addCollectionEventListener(_events, onEvent);
   }
-  /// FIXME 投稿メッセージにドキュメント作成/更新イベント時の処理関数を登録
-  Future<void> registerPostMessageEventListener(DocumentSnapshot event, void Function(QuerySnapshot document) onEvent) async {
+
+  /// 投稿メッセージにドキュメント作成/更新イベント時の処理関数(イベントリスナー)を登録
+  Future<void> setPostMessageEventListener(DocumentSnapshot event, void Function(QuerySnapshot document) onEvent) async {
     _postMessagesSelectorEvent = event;
     CollectionReference postMessages = getPostMessageCollection(event);
-    _postMessagesCollectionEventListener = await FirestoreService.createEventListener(postMessages, onEvent);
+    if (_postMessagesCollectionEventListenerMap.containsKey(postMessages.id)) {
+      return; // 多重登録を抑止
+    }
+    _postMessagesCollectionEventListenerMap.addEntries([
+      MapEntry(postMessages.id, await FirestoreService.addCollectionEventListener(postMessages, onEvent))
+    ]);
   }
-  /// FIXME 編集メッセージにドキュメント作成/更新イベント時の処理関数を登録
-  Future<void> registerEditMessageEventListener(CollectionReference editMessages, FirebaseUser user, void Function(QuerySnapshot document) onEvent) async {
+
+  /// 編集メッセージにドキュメント作成/更新イベント時の処理関数(イベントリスナー)を登録
+  Future<void> setEditMessageEventListener(CollectionReference editMessages, FirebaseUser user, void Function(QuerySnapshot document) onEvent) async {
+    List<DocumentSnapshot> editMessageList = await FirestoreService.getDocuments(editMessages);
+    if(editMessageList == null ||
+        editMessageList != null && editMessageList.isNotEmpty
+            && ! await isDocumentOwnerUser(editMessageList[0], user)) {
+      // 編集メッセージが存在しない場合、イベントリスナーが登録されないことに注意
+      return;
+    }
+    if (_editMessagesCollectionEventListenerMap.containsKey(editMessages.id)) {
+      return; // 多重登録を抑止
+    }
+    _editMessagesCollectionEventListenerMap.addEntries([
+      MapEntry(editMessages.id, await FirestoreService.addCollectionEventListener(editMessages, onEvent))
+    ]);
+  }
+
+  /// 管理者からドキュメント作成/更新イベント時の処理関数(イベントリスナー)を削除
+  Future<void> removeAdminEventListener(FirebaseUser user) async {
+    if (! await isAdminUser(user)) {
+      // 管理者が存在しない場合、イベントリスナーが削除されないことに注意
+      return;
+    }
+    FirestoreService.removeCollectionEventListener(_adminsCollectionEventListener);
+    _adminsCollectionEventListener = null;
+  }
+
+  /// イベントからドキュメント作成/更新イベント時の処理関数(イベントリスナー)を削除
+  Future<void> removeEventEventListener() async {
+    FirestoreService.removeCollectionEventListener(_eventsCollectionEventListener);
+    _eventsCollectionEventListener = null;
+  }
+
+  /// 投稿メッセージからドキュメント作成/更新イベント時の処理関数(イベントリスナー)を削除
+  Future<void> removePostMessageEventListener(DocumentSnapshot event) async {
+    _postMessagesSelectorEvent = event;
+    CollectionReference postMessages = getPostMessageCollection(event);
+    StreamSubscription<QuerySnapshot> eventListener = _postMessagesCollectionEventListenerMap[postMessages.id];
+    FirestoreService.removeCollectionEventListener(eventListener);
+    _postMessagesCollectionEventListenerMap.remove(postMessages.id);
+  }
+
+  /// 編集メッセージからドキュメント作成/更新イベント時の処理関数(イベントリスナー)を削除
+  Future<void> removeEditMessageEventListener(CollectionReference editMessages, FirebaseUser user) async {
     List<DocumentSnapshot> editMessageList = await FirestoreService.getDocuments(editMessages);
     if(editMessageList != null && editMessageList.isNotEmpty
         && ! await isDocumentOwnerUser(editMessageList[0], user)) {
-      _editMessagesCollectionEventListener = null;
+      // 編集メッセージが存在しない場合、イベントリスナーが削除されないことに注意
       return;
     }
-    _editMessagesCollectionEventListener = await FirestoreService.createEventListener(editMessages, onEvent);
+    StreamSubscription<QuerySnapshot> eventListener = _editMessagesCollectionEventListenerMap[editMessages.id];
+    FirestoreService.removeCollectionEventListener(eventListener);
+    _editMessagesCollectionEventListenerMap.remove(editMessages.id);
   }
-
-  /// FIXME 管理者からドキュメント作成/更新イベント時の処理関数をクリア
-  Future<void> clearAdminEventListener(FirebaseUser user) async {
-    if (! await isAdminUser(user)) return;
-    FirestoreService.clearEventListener(_adminsCollectionEventListener);
-  }
-  /// FIXME イベントからドキュメント作成/更新イベント時の処理関数をクリア
-  Future<void> clearEventEventListener() async {
-    FirestoreService.clearEventListener(_eventsCollectionEventListener);
-  }
-  /// FIXME 投稿メッセージからドキュメント作成/更新イベント時の処理関数をクリア
-  Future<void> clearPostMessageEventListener(DocumentSnapshot event) async {
-    _postMessagesSelectorEvent = event;
-    CollectionReference postMessages = getPostMessageCollection(event);
-    FirestoreService.clearEventListener(_postMessagesCollectionEventListener);
-  }
-  /// FIXME 編集メッセージからドキュメント作成/更新イベント時の処理関数をクリア
-  Future<void> clearEditMessageEventListener(StreamSubscription<QuerySnapshot> eventListener, CollectionReference editMessages, FirebaseUser user) async {
-    List<DocumentSnapshot> editMessageList = await FirestoreService.getDocuments(editMessages);
-    if(editMessageList != null && editMessageList.isNotEmpty
-        && ! await isDocumentOwnerUser(editMessageList[0], user)) {
-      return;
-    }
-    FirestoreService.clearEventListener(_editMessagesCollectionEventListener);
-  }
-
 
   /// 管理者一覧を取得
   Future<List<DocumentSnapshot>> getAdminDocuments(FirebaseUser user) async {
@@ -482,67 +514,62 @@ class AppDataExample {
 
   static Future<void> createData(Firestore firestore, FirebaseUser user) async {
     try {
-      print("Step.0");
+      debugPrint("Step.0");
       AppDataState appData = AppDataState(firestore: firestore);
-      print("Step.1");
+      debugPrint("Step.1");
       await appData.createAdminDocument(user, user);
-      print("Step.2");
+      debugPrint("Step.2");
       DocumentSnapshot event = await appData.addEventDocument(
           2018, 9, 24, 13, 30, 16, 30, "kyoto", user, "DevFest Kyoto 2018", "GDG Kyoto's DevFest", "Kyoto");
-      print("Step.3");
 
-// FIXME
-print("before registerPostMessageEventListener");
-await appData.registerPostMessageEventListener(event, (QuerySnapshot docSnap) {
-  List<DocumentChange> changes = docSnap.documentChanges;
-  changes.forEach((DocumentChange change) {
-    print("Event postMessage={MESSAGE=${change.document.data['MESSAGE']}, TIMESTAMP=${change.document.data['TIMESTAMP']}");
-  });
-});
-print("after registerPostMessageEventListener");
+      debugPrint("Step.3");
+      await appData.setPostMessageEventListener(event, (QuerySnapshot querySnap) {
+        List<DocumentChange> changes = querySnap.documentChanges;
+        changes.forEach((DocumentChange change) {
+          debugPrint("Event setPostMessageEventListener={MESSAGE=${change.document.data['MESSAGE']}, TIMESTAMP=${change.document.data['TIMESTAMP']}}");
+        });
+      });
+      debugPrint("Step.4");
 
-print("before getEventDocuments");
-      List<DocumentSnapshot> events = await appData.getEventDocuments();
-      print("getEventDocuments  events=${events.length}");
-print("after getEventDocuments");
-      print("Step.4");
+      // 投稿メッセージコレクションのイベントリスナーで、生成済の全ドキュメントが参照されないことをチェック。
+      List<DocumentSnapshot> messages = await appData.getPostMessageDocuments(appData.getPostMessageCollection(event));
+      debugPrint("getEventDocuments  messages=${messages.length}");
+
+      debugPrint("Step.5");
       DocumentSnapshot post1 = await appData.addPostMessageDocument(event, user, "DevFest Kyoto 2018 始まった", null);
-      print("Step.5");
+      debugPrint("Step.6");
       DocumentSnapshot post2 = await appData.addPostMessageDocument(event, user, "Kotlin イケイケですね~。", null);
-      print("Step.6");
+      debugPrint("Step.7");
       DocumentSnapshot post3 = await appData.addPostMessageDocument(event, user, "Flutter 頑張れ。", null);
-      print("Step.7");
-print("before addPostMessageDocument");
+      debugPrint("Step.8");
       DocumentSnapshot post4 = await appData.addPostMessageDocument(event, user, "ちょっと休憩？", null);
-print("after addPostMessageDocument");
-// FIXME
-print("before clearPostMessageEvent");
-await appData.clearPostMessageEventListener(event);
-print("after deletePostMessageDocument");
-print("before clearPostMessageEventListener");
-      await appData.deletePostMessageDocument(post4, user);
-print("after clearPostMessageEventListener");
 
-      print("Step.8");
+      debugPrint("Step.9");
+      await appData.removePostMessageEventListener(event);
+      debugPrint("Step.10");
+
+      debugPrint("Step.11");
+      await appData.deletePostMessageDocument(post4, user);
+      debugPrint("Step.12");
       CollectionReference postMessages = appData.getPostMessageCollection(event);
-      print("Step.9");
+      debugPrint("Step.13");
       List<DocumentSnapshot> postMessageList = await appData.getPostMessageDocuments(postMessages);
-      print("Step.10");
+      debugPrint("Step.14");
       int index = 0;
       postMessageList.forEach((DocumentSnapshot docSnap) {
         Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
         debugPrint("postMessage[${index++}]{\n  user=${map["DISPLAY_NAME"]}\n  icon=${map["ICON_URL"]}\n  ${map["MESSAGE"]}\n  image=${map["IMAGE_URL"]}\n  edit=${map["EDITED"]}\n  delete=${map["DELETED"]}\n}"); // FIXME
       });
-      print("Step.11");
+      debugPrint("Step.15");
       await appData.updatePostMessageDocument(post3, user, "Flutter やるじゃん。", null);
-      print("Step.12");
+      debugPrint("Step.16");
 
     } catch(error) {
-      print('Something went wrong.');
-      print("  type ⇒ ${error?.runtimeType??''}");
-      print("  error ⇒ {\n${error?.toString()??''}\n}");
+      debugPrint('Something went wrong.');
+      debugPrint("  type ⇒ ${error?.runtimeType??''}");
+      debugPrint("  error ⇒ {\n${error?.toString()??''}\n}");
       if (error is Error) {
-        print("  stacktrace ⇒ {\n${error?.stackTrace??''}\n}");
+        debugPrint("  stacktrace ⇒ {\n${error?.stackTrace??''}\n}");
       }
       rethrow;
     }
@@ -550,65 +577,65 @@ print("after clearPostMessageEventListener");
 
   static Future<void> readData(Firestore firestore, FirebaseUser user) async {
     try {
-      print("Step.0");
+      debugPrint("Step.0");
       AppDataState appData = AppDataState(firestore: firestore);
-      print("firestore.app.name=${firestore.app.name}");
-      print("Step.1");
+      debugPrint("firestore.app.name=${firestore.app.name}");
+      debugPrint("Step.1");
       DocumentSnapshot admin = await appData.getAdminDocument(user.uid, user);
       if (admin != null) {
         Map<String, dynamic> map = FirestoreService.getProperties(admin);
-        print("Admin=${map['MEMBER_DISPLAY_NAME']}");
+        debugPrint("Admin=${map['MEMBER_DISPLAY_NAME']}");
       } else{
-        print("Admin is null");
+        debugPrint("Admin is null");
       }
-      print("Step.2");
+      debugPrint("Step.2");
       int index;
       List<DocumentSnapshot> admins = await appData.getAdminDocuments(user);
       if (admins != null) {
         index = 0;
         admins.forEach((DocumentSnapshot docSnap){
           Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
-          print("Admin[${index++}]=${map['MEMBER_DISPLAY_NAME']}");
+          debugPrint("Admin[${index++}]=${map['MEMBER_DISPLAY_NAME']}");
         });
       } else {
-        print("Admins is null");
+        debugPrint("Admins is null");
       }
-      print("Step.3");
+      debugPrint("Step.3");
       List<DocumentSnapshot> events = await appData.getEventDocuments();
       index = 0;
       events.forEach((DocumentSnapshot docSnap){
         Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
-        print("Event[${index++}]=${map['TITLE']}");
+        debugPrint("Event[${index++}]=${map['TITLE']}");
       });
-      print("Step.4");
+      debugPrint("Step.4");
       DocumentSnapshot eventSnap = events[0];
       CollectionReference postMessages = appData.getPostMessageCollection(eventSnap);
       List<DocumentSnapshot> postDocuments = await appData.getPostMessageDocuments(postMessages);
       index = 0;
       postDocuments.forEach((DocumentSnapshot docSnap){
         Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
-        print("PostMessage[${index++}]=${map['MESSAGE']}, imageUrl=${map['IMAGE_URL']}, edit=${map['EDITED']}, delete=${map['DELETED']}");
+        debugPrint("PostMessage[${index++}]=${map['MESSAGE']}, imageUrl=${map['IMAGE_URL']}, edit=${map['EDITED']}, delete=${map['DELETED']}");
       });
-      print("Step.5");
+      debugPrint("Step.5");
       CollectionReference editMessages = appData.getEditMessageCollection(postDocuments[2]);
       List<DocumentSnapshot> editDocuments = await appData.getEditMessageDocuments(editMessages, user);
       if (editDocuments != null) {
         index = 0;
         editDocuments.forEach((DocumentSnapshot docSnap){
           Map<String, dynamic> map = FirestoreService.getProperties(docSnap);
-          print("editMessage[${index++}]=${map['MESSAGE']}, ${map['BEFORE_MESSAGE']}, ${map['IMAGE_URL']}, ${map['BEFORR_IMAGE_URL']}");
+          debugPrint("editMessage[${index++}]=${map['MESSAGE']}, ${map['BEFORE_MESSAGE']}, ${map['IMAGE_URL']}, ${map['BEFORR_IMAGE_URL']}");
         });
       } else {
-        print("editMessage is null");
+        debugPrint("editMessage is null");
       }
-      print("Step.6");
+      debugPrint("Step.6");
 
     } catch(error) {
-      print('Something went wrong.');
-      print("  type ⇒ ${error?.runtimeType??''}");
-      print("  error ⇒ {\n${error?.toString()??''}\n}");
+      debugPrint('Something went wrong.');
+      debugPrint("  type ⇒ ${error?.runtimeType??''}");
+      debugPrint("  error ⇒ {\n${error?.toString()??''}\n}");
       if (error is Error) {
-        print("  stacktrace ⇒ {\n${error?.stackTrace??''}\n}");
+        debugPrint("  stacktrace ⇒ {\n${error?.stackTrace??''}\n}");
       }
       rethrow;
     }
