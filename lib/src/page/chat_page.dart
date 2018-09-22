@@ -38,9 +38,14 @@ final ThemeData kDefaultTheme = new ThemeData(
 
 @override
 class ChatMessage extends StatelessWidget {
-  ChatMessage({this.snapshot, this.animation});
+  ChatMessage({this.snapshot, this.animation, this.uid, this.editFunc, this.deleteFunc});
   final DocumentSnapshot snapshot;
   final Animation animation;
+  final String uid;
+  final void Function(DocumentSnapshot postMessage) editFunc;
+  final Future<void> Function(DocumentSnapshot postMessage) deleteFunc;
+  static const String edit = "Edit";
+  static const String delete = "Delete";
 
   Widget build(BuildContext context) {
     return new SizeTransition(
@@ -73,6 +78,38 @@ class ChatMessage extends StatelessWidget {
                     new Text(snapshot.data['MESSAGE']),
                   ),
                 ],
+              ),
+            ),
+            new Container(
+              margin: const EdgeInsets.only(right: 0.0),
+              child: (snapshot.data['OWNER'] != uid)
+                  ? SizedBox()
+                  : PopupMenuButton<String>(
+                      padding: EdgeInsets.zero,
+                      onSelected: (String val) {
+                        if (val == edit) {
+                          editFunc(snapshot);
+                        }
+                        if (val == delete) {
+                          deleteFunc(snapshot);
+                        }
+                      },
+                      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                        const PopupMenuItem<String>(
+                            value: edit,
+                            child: ListTile(
+                                leading: Icon(Icons.edit),
+                                title: Text(edit)
+                            )
+                        ),
+                        const PopupMenuItem<String>(
+                            value: delete,
+                            child: ListTile(
+                                leading: Icon(Icons.delete),
+                                title: Text(delete)
+                            )
+                        )
+                      ],
               ),
             ),
           ],
@@ -147,6 +184,9 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
                 return new ChatMessage(
                       snapshot: _latestPostMessages[index],
                       animation: animation,
+                      uid: _signIn.user.uid,
+                      editFunc: editPostMessage,
+                      deleteFunc: deletePostMessage,
                     );
               },
             ),
@@ -160,7 +200,7 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
         ]));
   }
 
-  Widget _buildTextComposer() {
+  Widget _buildTextComposer({DocumentSnapshot updateMessage}) {
     return new IconTheme(
       data: new IconThemeData(color: Theme.of(context).accentColor),
       child: new Container(
@@ -183,7 +223,7 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
                         .ref().child("evtn_event").child("image_$random.jpg");
                     StorageUploadTask uploadTask = ref.putFile(imageFile);
                     Uri downloadUrl = (await uploadTask.future).downloadUrl;
-                    await _sendMessage(imageUrl: downloadUrl.toString());
+                    await _sendMessage(imageUrl: downloadUrl.toString(), updateMessage: updateMessage);
                   }
               ),
             ),
@@ -206,13 +246,13 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
                     ? new CupertinoButton(
                   child: new Text("Send"),
                   onPressed: _isComposing
-                      ? () => _handleSubmitted(_textController.text)
+                      ? () => _handleExtendSubmitted(_textController.text, updateMessage)
                       : null,
                 )
                     : new IconButton(
                   icon: new Icon(Icons.send),
                   onPressed: _isComposing
-                      ? () => _handleSubmitted(_textController.text)
+                      ? () => _handleExtendSubmitted(_textController.text, updateMessage)
                       : null,
                 )),
           ]),
@@ -225,18 +265,54 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
   }
 
   Future<Null> _handleSubmitted(String text) async {
+    // Enterでの誤投稿をさせないようにします。
+  }
+
+  Future<Null> _handleExtendSubmitted(String text, DocumentSnapshot updateMessage) async {
     _textController.clear();
     setState(() {
       _isComposing = false;
     });
-    await _sendMessage(message: text);
+    await _sendMessage(message: text, updateMessage: updateMessage);
   }
 
-  Future<void> _sendMessage({ String message, String imageUrl }) async {
-    debugPrint("_sendMessage  message=$message, imageUrl=$imageUrl");
+  Future<void> _sendMessage({ String message, String imageUrl, DocumentSnapshot updateMessage }) async {
+    debugPrint("_sendMessage  message=$message, imageUrl=$imageUrl, isUpdate=${updateMessage != null}");
     if (_appData.postMessagesSelectorEvent == null) return;
-    await _appData.addPostMessageDocument(_appData.postMessagesSelectorEvent, _signIn.user, message, imageUrl);
+
+    if (updateMessage == null) {
+      await _appData.addPostMessageDocument(_appData.postMessagesSelectorEvent, _signIn.user, message, imageUrl);
+    } else {
+      Navigator.pop(context);
+      await _appData.updatePostMessageDocument(updateMessage, _signIn.user, message, imageUrl);
+    }
   }
+
+  void editPostMessage(DocumentSnapshot postMessage) {
+    _textController.text = postMessage.data["MESSAGE"];
+
+    showDialog<Null>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+            content: _buildTextComposer(updateMessage: postMessage),
+            actions: <Widget>[
+              FlatButton(
+                  child: const Text('CANCEL'),
+                  onPressed: () { Navigator.pop(context); }
+              ),
+            ]
+        );
+      },
+    );
+  }
+
+  Future<void> deletePostMessage(DocumentSnapshot postMessage) async {
+    await _appData.deletePostMessageDocument(
+        postMessage,
+        _signIn.user);
+  }
+
 
   /// 非同期遅延セットアップ
   Future<void> _lateSetup(BuildContext context) async {
@@ -264,6 +340,7 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
                 /// 最新の投稿メッセージ一覧を設定
                 _latestPostMessages = querySnap.documents.where(
                     (DocumentSnapshot docSnap) {
+                      debugPrint("PostMessageEvent  docSnap=${docSnap.data['MESSAGE']}");
                       return !docSnap.data["DELETED"];
                     }).toList();
 
