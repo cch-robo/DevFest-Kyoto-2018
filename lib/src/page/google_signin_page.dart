@@ -76,6 +76,18 @@ class SignInPageState extends State<SignInPage> {
             textColor: Colors.black,
             child: const Text('DevFest Chat'),
             onPressed: () async {
+              // FIXME
+              /*
+              await checkSingleSubscriptionStream();
+              await Future.delayed(Duration(seconds: 10)); // 待機
+              await checkBroadCastStream();
+              await Future.delayed(Duration(seconds: 10)); // 待機
+              */
+              await checkStreamSubscription();
+              await Future.delayed(Duration(seconds: 10)); // 待機
+              await checkCreateStreamWithinEvent();
+              await Future.delayed(Duration(seconds: 10)); // 待機
+              await checkBlock();
               Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => ChatScreen()) );
@@ -129,5 +141,100 @@ class SignInPageState extends State<SignInPage> {
           constraints: const BoxConstraints.expand(),
           child: _buildBody(context),
         ));
+  }
+
+  Future<void> checkSingleSubscriptionStream() async {
+    StreamController<int> inState = new StreamController<int>();
+    Stream<int> stream = inState.stream;
+    // SingleSubscriptionStream では、無条件イベントハンドラのみ１つだけ登録できる。
+    stream.listen((int event) {
+      print("inState.stream  eventHandle('$event'), isBroadcast=${stream.isBroadcast}");
+    });
+    inState.add(1);
+    inState.add(2);
+    inState.add(3);
+    inState.close();
+  }
+  Future<void> checkBroadCastStream() async {
+    StreamController<int> inState = new StreamController<int>();
+    Stream<int> broadcastStream = inState.stream.asBroadcastStream();
+    // BroadcastStream でも、無条件イベントハンドラは１つのみ登録できる。
+    broadcastStream.listen((int event){
+      print("inState.stream.asBroadCastStream  eventHandle('$event'), isBroadcast=${broadcastStream.isBroadcast}");
+    });
+    // BroadcastStream では、条件付イベントハンドラが複数登録できる。
+    broadcastStream.where((int event){return true;}).listen((int event){ print("broadcastStream  eventHandle1('$event')"); });
+    broadcastStream.where((int event){return true;}).listen((int event){ print("broadcastStream  eventHandle2('$event')"); });
+    broadcastStream.where((int event){return true;}).listen((int event){ print("broadcastStream  eventHandle3('$event')"); });
+    inState.sink.add(1);
+    inState.sink.add(2);
+    inState.sink.add(3);
+    inState.sink.close();
+  }
+  Future<void> checkStreamSubscription() async {
+    StreamController<int> inState = new StreamController<int>();
+    // StreamSubscriptionは、イベントリスナーを含むイベントコントローラです。
+    StreamSubscription<int> subscription = inState.stream.listen((int event) {
+      // 無条件ハンドラは、StreamSubscription#onData() があれば上書きされます。
+      print("inState.stream  eventHandle('$event')");
+    });
+    subscription.onData((int data){
+      print("inState.stream  StreamSubscription#onData('$data')");
+    });
+    subscription.onDone((){
+      print("inState.stream  StreamSubscription#onDone()");
+    });
+    inState.onCancel = (){
+      print("cancelled.");
+    };
+    inState.sink.add(1);
+    print("add event 1 done!");
+    inState.sink.add(2);
+    print("add event 2 done!");
+    await Future.delayed(Duration(seconds: 10)); // キュー内のisolateが先に実行されるよう10秒間待機する。
+    inState.sink.add(3);
+    print("add event 3 done!");
+    await subscription.cancel(); // cancel()を使うとイベントが発行されません。
+    inState.sink.close();
+  }
+  Future<void> checkCreateStreamWithinEvent() async {
+    StreamController<int> inState = new StreamController<int>();
+
+    // Iterable なデータから Stream を生成する。
+    List<int> list = [3,4,5];
+    Stream<int> srcStream = Stream.fromIterable(list);
+
+    // ストリーム(stream: プロパティ)の内容をデータから生成したストリームに置換
+    // 初期設定のストリームが無効になるため、
+    // 対応する流し込みイベント溜め⇒流し台⇒シンク(sink: )も無効になります。
+    inState.addStream(srcStream);
+
+    // SingleSubscriptionStream では、無条件イベントハンドラのみ１つだけ登録できる。
+    Stream<int> stream = inState.stream;
+    stream.listen((int event) {
+      print("inState.stream  eventHandle('$event'), isBroadcast=${stream.isBroadcast}");
+    });
+  }
+  Future<void> checkBlock() async {
+    StreamController<int> inEvent = new StreamController<int>();
+    StreamController<String> outData = new StreamController<String>();
+
+    // イベント入力 ~ リアクションのデータ生成およびキックの設定
+    // （入出力のバインドとロジックの実装）
+    inEvent.stream.listen((int event) {
+      print("inEvent.stream  handleEvent('$event')");
+      outData.add("<<<${event * 100}>>>");
+    });
+
+    // リアクション出力の設定
+    // （Widget を更新する場合は、outData に StreamBuilder を使います）
+    outData.stream.listen((String data) {
+      print("outData.stream  handleData('$data')");
+    });
+
+    // イベント入力 （対応するリアクションは、自動的に発生する）
+    inEvent.add(1);
+    inEvent.add(2);
+    inEvent.add(3);
   }
 }
