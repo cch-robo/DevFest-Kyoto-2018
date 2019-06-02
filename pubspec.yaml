@@ -7,7 +7,11 @@ description: A new Flutter project.
 # Both the version and the builder number may be overridden in flutter
 # build by specifying --build-name and --build-number, respectively.
 # Read more about versioning at semver.org.
-version: 1.0.0+1
+#
+# Google Play 64bit必須化規約による、Flutter アプリの (32/64bit) Multiple APK 対応
+# versionName ⇒ <major>.<minor>.<point> の point を'0'決めとして、minor を更新する。
+# versionCode ベース値は、major*1000+minorとする。
+version: 1.1.0+1001
 
 environment:
   sdk: ">=2.0.0-dev.68.0 <3.0.0"
