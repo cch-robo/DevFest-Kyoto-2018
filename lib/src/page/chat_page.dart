@@ -222,8 +222,9 @@ class ChatScreenState extends State<ChatScreen>  with SingleTickerProviderStateM
                     StorageReference ref = FirebaseStorage.instance
                         .ref().child("evtn_event").child("image_$random.jpg");
                     StorageUploadTask uploadTask = ref.putFile(imageFile);
-                    Uri downloadUrl = (await uploadTask.future).downloadUrl;
-                    await _sendMessage(imageUrl: downloadUrl.toString(), updateMessage: updateMessage);
+                    final StorageTaskSnapshot uploadSnapshot = (await uploadTask.onComplete);
+                    final String downloadUrl = (await uploadSnapshot.ref.getDownloadURL());
+                    await _sendMessage(imageUrl: downloadUrl, updateMessage: updateMessage);
                   }
               ),
             ),
