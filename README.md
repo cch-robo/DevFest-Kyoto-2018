@@ -14,10 +14,10 @@ Flutter と Firebase を使えば、ささっとサービスを作れること�
 ## 注意事項
 
 Firestoreを使っているため、このままビルドしてもアプリは稼働しません。
-Google Play アプリ 64bit必須化に伴い、Multiple APK (32/64bit同梱)化しています。
 
 独自のアプリ(チャットサービス)として使いたい場合は、Firestoreが使えるよう、  
 アプリへの独自署名と独自Firebaseプロジェクトへのアプリ登録が必要です。
 
 上記の手順については、DevFest Kyoto 2018 資料 [FlutterとFirebaseでささっとサービスを作ろう](https://drive.google.com/open?id=1P5MGdy1XozBugQcSJx954zyrlRfz7d-M) を御参照ください。
 
+Google Play アプリ 64bit必須化に伴い、Multiple APK (32/64bit同梱)化しています。
