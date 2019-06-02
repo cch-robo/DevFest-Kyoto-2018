@@ -31,6 +31,37 @@ def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
 keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 
+// Google Play 64bit必須化規約による、Flutter アプリの (32/64bit) Multiple APK 対応
+// 　NDK などで APK 内に ABI バイナリを持つアプリの 64bit コード版必須制限の対応について
+// 　※ 通常の Java/Kotlin で作られた Android アプリは、NDK/ABI を含まないので対象外
+// 　1.Flutter アプリの場合は、Skia エンジン内で ABI バイナリを使っているため 64bit 対応が必要です。
+// 　2.対応端末を増やすために 32bit版の APK も必要な場合は、Multiple APK としてリリースします。
+// 　　Flutter は、32bit/64bit 両者の ABI を含んだユニバーサル APK を作成できません。
+// 　　このため 32bit/64bit ごとに、app/build.gradle の versionName は同じだが、versionCode が異なる APK を作成し、
+// 　　Multiple APK を利用したアプリとして、32/64bit APK をGoogle Play にリリースすれば良いことになります。
+// 　　※ pubspec.yaml 内で、
+// 　　※ 　versionName ⇒ <major>.<minor>.<point> の point を'0'決めとして、minorを更新する、
+// 　　※ 　versionCode ベース値は、major*1000 + minorとする。
+// 　　※ android/app/build.gradle 内で、
+// 　　※ 　NDK の target-platform プロパティや、任意の環境変数で ABI を区別できるようにして、
+// 　　※ 　ベース値を major*10000 + minor*10 に、
+// 　　※ 　CPU別で（32bitなら+1、64bitなら+2）値を修正する処理を追加
+// 　　※ 明示的に 64bit版の APK を作るコマンド: flutter build apk --release --target-platform=android-arm64
+// 　　※ 明示的に 32bit版の APK を作るコマンド: flutter build apk --release --target-platform=android-arm
+// 　　※ NDK を使わない場合は、上記実行時に 32/64bit を識別するため ABI_TYPE 等の任意環境変数を設定する必要があります。
+// 　3.リリース作業の簡易化のため、プロジェクトルートに 32/64bit APK 作成シェルスクリプトを追加しています。
+// 　   build_arm32-v7a_apk.sh/build_arm64-v8a_apk.sh は、同一 versionName だが別々の versionCode になるAPKを作成します。
+//
+// 　【参考】
+// 　　Flutter for Android の ABI (armeabi-v7a と arm64-v8a)
+// 　　https://qiita.com/najeira/items/3e2914d007e990af947c
+//
+// 　　Multiple APK support
+// 　　https://developer.android.com/google/play/publishing/multiple-apks
+//
+// 　　Get Android .apk file VersionName or VersionCode WITHOUT installing apk
+// 　　https://stackoverflow.com/questions/13469147/get-android-apk-file-versionname-or-versioncode-without-installing-apk
+//
 
 android {
     compileSdkVersion 27
@@ -49,7 +80,7 @@ android {
         minSdkVersion 16
         targetSdkVersion 27
         multiDexEnabled true // ライブラリ関数 64k over 問題のため multi-dex 対応化 ⇒ https://developer.android.com/studio/build/multidex
-        versionCode flutterVersionCode.toInteger()
+        versionCode flutterVersionCode.toInteger() * 10 + parseAbiCode() // Multiple APK 対応
         versionName flutterVersionName
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
@@ -115,6 +146,30 @@ dependencies {
     implementation 'com.google.firebase:firebase-messaging:17.3.0'
     implementation 'com.google.firebase:firebase-storage:16.0.1'
     */
+}
+
+// Multiple APK 対応
+def parseAbiCode() {
+    /*
+    // NDK を利用している場合は、target-platform プロパティが使えます
+    def abiType = project.property('target-platform')
+    */
+    def abiType = System.getenv()['ABI_TYPE']
+    println "abiType=" + abiType
+
+    def abiCode = 0
+    switch (abiType) {
+        case 'android-arm64':
+            abiCode = 2
+            break
+        case 'android-arm':
+            abiCode = 1
+            break
+        default:
+            abiCode = 0
+            break
+    }
+    return abiCode
 }
 
 // DevFest 2018 サービスデモ用に追加
