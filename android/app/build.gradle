@@ -33,24 +33,29 @@ keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 
 // Google Play 64bit必須化規約による、Flutter アプリの (32/64bit) Multiple APK 対応
 // 　NDK などで APK 内に ABI バイナリを持つアプリの 64bit コード版必須制限の対応について
-// 　※ 通常の Java/Kotlin で作られた Android アプリは、NDK/ABI を含まないので対象外
+// 　0.通常の Java/Kotlin で作られた Android アプリは、NDK/ABI を含まないので対象外です。
 // 　1.Flutter アプリの場合は、Skia エンジン内で ABI バイナリを使っているため 64bit 対応が必要です。
 // 　2.対応端末を増やすために 32bit版の APK も必要な場合は、Multiple APK としてリリースします。
 // 　　Flutter は、32bit/64bit 両者の ABI を含んだユニバーサル APK を作成できません。
 // 　　このため 32bit/64bit ごとに、app/build.gradle の versionName は同じだが、versionCode が異なる APK を作成し、
-// 　　Multiple APK を利用したアプリとして、32/64bit APK をGoogle Play にリリースすれば良いことになります。
+// 　　Multiple APK を利用したアプリとして、32/64bit APK をGoogle Play にリリースする必要があります。
+//
 // 　　※ pubspec.yaml 内で、
-// 　　※ 　versionName ⇒ <major>.<minor>.<point> の point を'0'決めとして、minorを更新する、
-// 　　※ 　versionCode ベース値は、major*1000 + minorとする。
+// 　　※ 　versionName ⇒ <major>.<minor>.<point> は、任意と決め、
+// 　　※ 　versionCode ⇒ 任意の ベース値 とします。
 // 　　※ android/app/build.gradle 内で、
 // 　　※ 　NDK の target-platform プロパティや、任意の環境変数で ABI を区別できるようにして、
-// 　　※ 　ベース値を major*10000 + minor*10 に、
-// 　　※ 　CPU別で（32bitなら+1、64bitなら+2）値を修正する処理を追加
+// 　　※ 　Google Play 内部でのバージョンコードは、ベース値 * 10 + α となるよう、
+// 　　※ 　CPU別で（32bitなら+1、64bitなら+2）値を追加する関数 parseAbiCode() を適用します。
+// 　　※　 (α には、32bit版:1、64bit版:2、ローカルビルド/DeployGate版:0 が指定されます)
+// 　　※
 // 　　※ 明示的に 64bit版の APK を作るコマンド: flutter build apk --release --target-platform=android-arm64
 // 　　※ 明示的に 32bit版の APK を作るコマンド: flutter build apk --release --target-platform=android-arm
 // 　　※ NDK を使わない場合は、上記実行時に 32/64bit を識別するため ABI_TYPE 等の任意環境変数を設定する必要があります。
-// 　3.リリース作業の簡易化のため、プロジェクトルートに 32/64bit APK 作成シェルスクリプトを追加しています。
+// 　　
+// 　3.リリース作業の簡易化のため、android/toolsに 32/64bit APK 作成シェルスクリプトを追加しています。
 // 　   build_arm32-v7a_apk.sh/build_arm64-v8a_apk.sh は、同一 versionName だが別々の versionCode になるAPKを作成します。
+// 　　　シェルスクリプトは、プロジェクトルートで、android/tools/build_arm64-v8a_apk.sh で実行できます。
 //
 // 　【参考】
 // 　　Flutter for Android の ABI (armeabi-v7a と arm64-v8a)
@@ -76,6 +81,10 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // versionCode や versionName は、Flutter でのアプリビルド(*1)で自動生成される android/local.properties から提供されます。
+        // (*1) 例：flutter build apk --build-name=1.0.2 --build-number=3 など
+        //      versionName は、ビルド時に強制的な指定がなくければ、pubspec.yaml の version: 項目（例:1.0.0+1 の 1.0.0）と同期します。
+        //      versionCode は、ビルド時に強制的な指定がなくければ、pubspec.yaml の version: 項目（例:1.0.0+1 の 1）と同期します。
         applicationId "app.cchlab.flutter.android.devfest2018"
         minSdkVersion 16
         targetSdkVersion 27
@@ -83,6 +92,7 @@ android {
         versionCode flutterVersionCode.toInteger() * 10 + parseAbiCode() // Multiple APK 対応
         versionName flutterVersionName
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        ndk.abiFilters 'armeabi-v7a','arm64-v8a','x86','x86_64' // NDK abi別対応設定
     }
 
     // Android Developers > Android Studio > User Guild > アプリの署名 より
