@@ -46,12 +46,12 @@ dependencies:
   cupertino_icons: ^0.1.2
 
   # DevFest 2018 サービスデモ用に追加
-  google_sign_in: ^3.0.5
-  firebase_auth: ^0.5.20
-  cloud_firestore: ^0.8.0
-  firebase_messaging: ^2.0.0
-  firebase_storage: ^1.0.2
-  image_picker: ^0.4.10
+  google_sign_in: ^4.0.4
+  firebase_auth: ^0.11.1+8
+  cloud_firestore: ^0.12.7
+  firebase_messaging: ^5.1.0
+  firebase_storage: ^3.0.3
+  image_picker: ^0.6.0+15
 
 
 dev_dependencies:
