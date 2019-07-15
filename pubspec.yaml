@@ -8,10 +8,7 @@ description: A new Flutter project.
 # build by specifying --build-name and --build-number, respectively.
 # Read more about versioning at semver.org.
 #
-# Google Play 64bit必須化規約による、Flutter アプリの (32/64bit) Multiple APK 対応
-# 同一 versionName で、複数機種別 APK (Multiple APK) が提供できるようにするため、
-# version:(バージョンネーム+バージョンコード) の運用について、以下のように定めます。
-#
+# version:(バージョンネーム+バージョンコード) の運用規定
 # １．iOS/Android ともに、App Store / Google Play 公開バージョンネームは 同一とする。
 # ２．バージョンコードは、バージョンネームが上がる毎に、以前の値から +1 とする。
 # ３．バージョンネームからバージョンコードを推定できるようにしません。
@@ -32,7 +29,7 @@ description: A new Flutter project.
 # 　ios/Runner/info.plist の CFBundleVersion に適用されます。
 # ・android/local.properties の flutter.versionCode に同期され、
 # 　android/app/build.gradle の versionCode に適用されます。
-version: 1.1.2+1002
+version: 1.1.3+10023
 
 environment:
   sdk: ">=2.0.0-dev.68.0 <3.0.0"
