@@ -69,7 +69,7 @@ keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 //
 
 android {
-    compileSdkVersion 27
+    compileSdkVersion 28
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
@@ -87,7 +87,7 @@ android {
         //      versionCode は、ビルド時に強制的な指定がなくければ、pubspec.yaml の version: 項目（例:1.0.0+1 の 1）と同期します。
         applicationId "app.cchlab.flutter.android.devfest2018"
         minSdkVersion 16
-        targetSdkVersion 27
+        targetSdkVersion 28
         multiDexEnabled true // ライブラリ関数 64k over 問題のため multi-dex 対応化 ⇒ https://developer.android.com/studio/build/multidex
         versionCode flutterVersionCode.toInteger() * 10 + parseAbiCode() // Multiple APK 対応
         versionName flutterVersionName
