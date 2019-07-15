@@ -42,14 +42,15 @@ class SignInState {
         // Force the user to interactively sign in
         currentUser = await _googleSignIn.signIn();
       }
-
       final GoogleSignInAuthentication auth = await currentUser.authentication;
 
-      // Authenticate with firebase
-      _user = await _auth.signInWithGoogle(
+      final AuthCredential credential = GoogleAuthProvider.getCredential(
         idToken: auth.idToken,
         accessToken: auth.accessToken,
       );
+
+      // Authenticate with firebase
+      _user = await _auth.signInWithCredential(credential);
 
       assert(_user != null);
       assert(!_user.isAnonymous);

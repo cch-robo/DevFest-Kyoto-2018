@@ -68,6 +68,95 @@ keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 // 　　https://stackoverflow.com/questions/13469147/get-android-apk-file-versionname-or-versioncode-without-installing-apk
 //
 
+// Flutter 1.7.8-hotfix2 より、
+// Android App Bundle での 32/64bit abi が対応され、
+// Google Play に、署名済みの AAB ファイルを配置することで、
+// 接続端末ごとに 適切なABI ⇒ 32bit/64bit APK を動的作成して配信できるようになりました。
+//
+// 【Google Play への AAB ファイルデプロイ】
+// ・Google Play での App Bundle を使ったアプリ配信段取り
+// 　App Bundle を使い、接続端末に最適化された APK を動的作成して配信する方法。
+//
+// 1.Google Play Console に、Google Play アプリ署名を登録して、
+// 　Google Play が配信端末用に最適化して生成した APK に再署名できるようにしておきます。
+//
+// 2.build.gradle に署名設定 signingConfigs を追加して、
+// 　署名付きの Android App Bundle ファイルを作成できるようにします。
+//
+// 3.flutter コマンドで、(android app bundle) AAB ファイルを生成します。
+// 　(例)$ flutter build appbundle --release --flavor product
+//
+// 4.Google Play Console への 署名付き AAB ファイルをアップロードします。
+// 　(未署名の AAB ファイルをアップロードしても無効です。)
+//
+// 5.接続端末が 32bit端末なら、ABI が arm32-v7a の APK が作成され、
+// 　接続端末が 64bit端末なら、ABI が arm64-v8a の APK が作成され、
+// 　Google Play から、AAB ファイルを使って端末ごとに最適化された APK が配信されます。
+//
+// 【参考元】
+// 　Android Developer > Android Studio > User guide
+// 　Upload your app to the Play Console
+// 　https://developer.android.com/studio/publish/upload-bundle
+//
+// 　Android App Bundle でアプリや機能をオンデマンド配信する
+// 　https://support.google.com/googleplay/android-developer/answer/9006925#review
+//
+// 　Android Developers > Docs > Guides
+// 　About Android App Bundles
+// 　https://developer.android.com/guide/app-bundle
+// 　備考）Android App Bundle を使って、Google Play にアプリを配信する手順
+//
+// 　Build your app from the command line
+// 　https://developer.android.com/studio/build/building-cmdline#build_bundle
+// 　備考）Google Play Console には、署名済の App Bundle をアップロードする必要があります。
+// 　　　　署名付きの App Bundle を作成するには、build.gradle に singingConfig 設定を追加します。
+//
+//
+// 【開発APKのローカルインストール】
+// ・app.aab ファイルをビルドし、
+//   端末ごとの apk を作成してインストールするには、以下の手順を取ります。
+//
+//   補足）前提として、JDK がインストール済みであること。
+//   　　　bundletool ⇒ bundletool-all-0.10.0.jar が下記からダウンロード済であること。
+//   　　　https://github.com/google/bundletool/releases
+//   補足）2, 3 では、bundletool.jar や debug.keystore と app.aab ファイルが
+//   　　　同じディレクトリにあるとしています。
+//
+// 1.app.aab ファイルの作成（build/app/outputs/bundle 以下に作成されます）
+//   (develop の flavor 設定があるとした場合、なければ --flavor 以降は省略)
+//   $ flutter build appbundle --debug --flavor develop
+//
+// 2.app.aab ファイルから app.apks ファイルを作成
+//   java -jar bundletool-all-0.10.0.jar \
+//   build-apks \
+//   --bundle=app.aab \
+//   --output=app.apks \
+//   --ks=debug.keystore \
+//   --ks-pass=pass:android \
+//   --ks-key-alias=androiddebugkey \
+//   --key-pass=pass:android
+//
+// 3.app.apks ファイルを使って USB接続端末へインストール
+//   デバッグ署名済みの app.apk から USB接続先端末に合わせた apk をインストールさせるコマンド
+//   java -jar bundletool-all-0.10.0.jar install-apks --apks=app.apks
+//
+// 【参考元】
+// 　flutter > Docs > Development >
+// 　Preparing an Android app for release # Build an app bundle
+// 　https://flutter.dev/docs/deployment/android#build-an-app-bundle
+//
+// 　Android Developers > Android Studio > User guide
+// 　bundletool
+// 　https://developer.android.com/studio/command-line/bundletool
+//
+// 　Android App Bundleを端末にインストールする
+// 　https://qiita.com/ikemura23/items/9b6064cb123edc1e233f
+//
+// 　bundletool ダウンロード元
+// 　https://github.com/google/bundletool
+// 　https://github.com/google/bundletool/releases
+//
+
 android {
     compileSdkVersion 28
 
@@ -86,10 +175,10 @@ android {
         //      versionName は、ビルド時に強制的な指定がなくければ、pubspec.yaml の version: 項目（例:1.0.0+1 の 1.0.0）と同期します。
         //      versionCode は、ビルド時に強制的な指定がなくければ、pubspec.yaml の version: 項目（例:1.0.0+1 の 1）と同期します。
         applicationId "app.cchlab.flutter.android.devfest2018"
-        minSdkVersion 16
+        minSdkVersion 21
         targetSdkVersion 28
-        multiDexEnabled true // ライブラリ関数 64k over 問題のため multi-dex 対応化 ⇒ https://developer.android.com/studio/build/multidex
-        versionCode flutterVersionCode.toInteger() * 10 + parseAbiCode() // Multiple APK 対応
+        //versionCode flutterVersionCode.toInteger() * 10 + parseAbiCode() // Multiple APK 対応
+        versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
         ndk.abiFilters 'armeabi-v7a','arm64-v8a','x86','x86_64' // NDK abi別対応設定
@@ -125,27 +214,29 @@ flutter {
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jre7:$kotlin_version"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     testImplementation 'junit:junit:4.12'
-    androidTestImplementation 'com.android.support.test:runner:1.0.2'
-    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+    //testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    androidTestImplementation 'androidx.test:runner:1.2.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
 
-    // FIXME 2018/09/10 現在の firebase プラグイン問題点の直接回避
+    // INFO 2018/09/10 時点での firebase プラグイン問題点の直接回避
     // ライブラリ関数 64k over 問題のため Android 5.0 以下でも multi-dex 対応化
     // (API 21 以降は標準で multi-dex 対応しているため、
-    //  当該 multi-dex 指定と defaultConfig: multiDexEnabled 指定が不要になります)
+    // defaultConfig: multiDexEnabled true 指定が不要になります)
     //
     // 【参考元】
     // Enable multidex for apps with over 64K methods
     // https://developer.android.com/studio/build/multidex
-    //implementation 'com.android.support:multidex:1.0.3'
 
-    // FIXME 2018/09/10 image_picker ライブラリ依存の直接回避
+    // INFO 2018/09/10 image_picker ライブラリ依存の直接回避
     // DevFest 2018 サービスで利用している image_picker ライブラリが
     // android/build.gradle で support ライブラリのバージョンを指定(*1)しているため、
     // サポートライブラリの依存バージョンを指定して導入する。
     // (*1)dependencies { api 'com.android.support:support-v4:27.1.1' }
-    implementation 'com.android.support:support-v4:27.1.1'
+    //
+    // 2019/07/15 以下の記述は、プラグインのバージョンアップにより不要になりました。
+    // implementation 'androidx.legacy:legacy-support-v4:1.0.0'
 
     /*
     // DevFest 2018 サービスデモ用に追加
@@ -158,12 +249,12 @@ dependencies {
     */
 }
 
+/*
 // Multiple APK 対応
 def parseAbiCode() {
-    /*
     // NDK を利用している場合は、target-platform プロパティが使えます
-    def abiType = project.property('target-platform')
-    */
+    // def abiType = project.property('target-platform')
+
     def abiType = System.getenv()['ABI_TYPE']
     println "abiType=" + abiType
 
@@ -181,6 +272,7 @@ def parseAbiCode() {
     }
     return abiCode
 }
+*/
 
 // DevFest 2018 サービスデモ用に追加
 apply plugin: 'com.google.gms.google-services'
