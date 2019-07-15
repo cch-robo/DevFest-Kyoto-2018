@@ -86,9 +86,8 @@ android {
         //      versionName は、ビルド時に強制的な指定がなくければ、pubspec.yaml の version: 項目（例:1.0.0+1 の 1.0.0）と同期します。
         //      versionCode は、ビルド時に強制的な指定がなくければ、pubspec.yaml の version: 項目（例:1.0.0+1 の 1）と同期します。
         applicationId "app.cchlab.flutter.android.devfest2018"
-        minSdkVersion 16
+        minSdkVersion 21
         targetSdkVersion 28
-        multiDexEnabled true // ライブラリ関数 64k over 問題のため multi-dex 対応化 ⇒ https://developer.android.com/studio/build/multidex
         versionCode flutterVersionCode.toInteger() * 10 + parseAbiCode() // Multiple APK 対応
         versionName flutterVersionName
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
@@ -125,27 +124,29 @@ flutter {
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jre7:$kotlin_version"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     testImplementation 'junit:junit:4.12'
-    androidTestImplementation 'com.android.support.test:runner:1.0.2'
-    androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'
+    //testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    androidTestImplementation 'androidx.test:runner:1.2.0'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
 
-    // FIXME 2018/09/10 現在の firebase プラグイン問題点の直接回避
+    // INFO 2018/09/10 時点での firebase プラグイン問題点の直接回避
     // ライブラリ関数 64k over 問題のため Android 5.0 以下でも multi-dex 対応化
     // (API 21 以降は標準で multi-dex 対応しているため、
-    //  当該 multi-dex 指定と defaultConfig: multiDexEnabled 指定が不要になります)
+    // defaultConfig: multiDexEnabled true 指定が不要になります)
     //
     // 【参考元】
     // Enable multidex for apps with over 64K methods
     // https://developer.android.com/studio/build/multidex
-    //implementation 'com.android.support:multidex:1.0.3'
 
-    // FIXME 2018/09/10 image_picker ライブラリ依存の直接回避
+    // INFO 2018/09/10 image_picker ライブラリ依存の直接回避
     // DevFest 2018 サービスで利用している image_picker ライブラリが
     // android/build.gradle で support ライブラリのバージョンを指定(*1)しているため、
     // サポートライブラリの依存バージョンを指定して導入する。
     // (*1)dependencies { api 'com.android.support:support-v4:27.1.1' }
-    implementation 'com.android.support:support-v4:27.1.1'
+    //
+    // 2019/07/15 以下の記述は、プラグインのバージョンアップにより不要になりました。
+    // implementation 'androidx.legacy:legacy-support-v4:1.0.0'
 
     /*
     // DevFest 2018 サービスデモ用に追加
