@@ -9,9 +9,30 @@ description: A new Flutter project.
 # Read more about versioning at semver.org.
 #
 # Google Play 64bit必須化規約による、Flutter アプリの (32/64bit) Multiple APK 対応
-# versionName ⇒ <major>.<minor>.<point> の point を'0'決めとして、minor を更新する。
-# versionCode ベース値は、major*1000+minorとする。
-version: 1.1.0+1001
+# 同一 versionName で、複数機種別 APK (Multiple APK) が提供できるようにするため、
+# version:(バージョンネーム+バージョンコード) の運用について、以下のように定めます。
+#
+# １．iOS/Android ともに、App Store / Google Play 公開バージョンネームは 同一とする。
+# ２．バージョンコードは、バージョンネームが上がる毎に、以前の値から +1 とする。
+# ３．バージョンネームからバージョンコードを推定できるようにしません。
+#   　つまり バージョンネームの <major>.<minor>.<point> の各桁数位置を指定しません。
+#   　例えば、バージョンネームが "1.4.2" なら、2 + 4×10 + 1×100 ⇒ 142 とはしません。
+# ４．(iOS) App Store 内部でのバージョンコードは、申請都合による任意値とします。
+# ５．(Android) APK 内のバージョンコードは、バージョンコード × 10 + α とします。
+# 　　(α には、32bit版:1、64bit版:2、ローカルビルド/DeployGate版:0 が指定されます)
+#
+# version: 左辺項目（例:1.0.0+1 の 1.0.0） ⇒ バージョンネーム
+# ・ios/Flutter/Generated.xcconfig の FLUTTER_BUILD_NAME に同期され、
+# 　ios/Runner/info.plist の CFBundleShortVersionString に適用されます。
+# ・android/local.properties の flutter.versionName に同期され、
+# 　android/app/build.gradle の versionName に適用されます。
+#
+# version: 右辺項目（例:1.0.0+1 の 1） ⇒ バージョンコード
+# ・ios/Flutter/Generated.xcconfig の FLUTTER_BUILD_NUMBER に同期され、
+# 　ios/Runner/info.plist の CFBundleVersion に適用されます。
+# ・android/local.properties の flutter.versionCode に同期され、
+# 　android/app/build.gradle の versionCode に適用されます。
+version: 1.1.2+1002
 
 environment:
   sdk: ">=2.0.0-dev.68.0 <3.0.0"
